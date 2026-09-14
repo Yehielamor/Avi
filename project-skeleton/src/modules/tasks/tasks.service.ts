@@ -1,5 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TaskStatus } from '@prisma/client';
 import type { Task } from '@prisma/client';
 
@@ -33,11 +32,8 @@ export interface CloseTaskResult {
 
 @Injectable()
 export class TasksService {
-  private readonly logger = new Logger(TasksService.name);
-
   constructor(
     private readonly prisma: PrismaService,
-    private readonly events: EventEmitter2,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -185,7 +181,6 @@ export class TasksService {
       return created;
     });
 
-    this.emitAfterCommit('task.created', { tenantId, taskId: task.id, source: 'MANUAL' });
     return task;
   }
 
@@ -245,7 +240,6 @@ export class TasksService {
       return created;
     });
 
-    this.emitAfterCommit('task.created', { tenantId, taskId: task.id, source: 'EMAIL' });
     return task;
   }
 
@@ -316,7 +310,6 @@ export class TasksService {
     });
 
     if (!result.alreadyClosed) {
-      this.emitAfterCommit('task.closed', { tenantId, taskId });
     }
 
     return { taskId, status: TaskStatus.CLOSED, alreadyClosed: result.alreadyClosed };
@@ -349,17 +342,4 @@ export class TasksService {
     });
   }
 
-  /**
-   * גשר זמני. מקור האמת הוא ה-OutboxEvent שנכתב בטרנזקציה; ה-emit
-   * נשאר רק כל עוד אין עובד outbox בריפו, כי Inventory/Invoicing/Comms
-   * מאזינים ל-@OnEvent ואין להם עדיין צרכן אחר. ברגע שהעובד קיים —
-   * השורות האלה יורדות (docs/20-backend-conventions.md §7).
-   */
-  private emitAfterCommit(eventName: string, payload: Record<string, unknown>): void {
-    try {
-      this.events.emit(eventName, payload);
-    } catch (err: unknown) {
-      this.logger.error({ err, eventName, payload }, 'In-process event dispatch failed');
-    }
-  }
 }

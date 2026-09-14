@@ -9,6 +9,8 @@ import { randomUUID } from 'node:crypto';
 import { validateEnv, type AppEnv } from './config/env.schema';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
+import { QueueModule } from './queue/queue.module';
+import { WorkerModule } from './queue/worker.module';
 import { TenantContextMiddleware } from './common/tenant-context.middleware';
 import { RolesGuard } from './common/guards/roles.guard';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
@@ -95,6 +97,7 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
 
     DatabaseModule,
     HealthModule,
+    QueueModule,
 
     TenantsModule,
     AuthModule,
@@ -108,6 +111,10 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
     CommsModule,
     InventoryModule,
     OnboardingModule,
+
+    // נטען אחרון: הוא מייבא את מודולי הדומיין שלמעלה, והעובדים
+    // מתחילים לצרוך רק אחרי שכולם מוכנים.
+    WorkerModule,
   ],
   // סדר ה-guards מהותי: throttle לפני auth (כדי שהצפה לא תבזבז
   // bcrypt), ו-auth לפני roles (כדי שתפקיד ייבדק רק על משתמש מזוהה).

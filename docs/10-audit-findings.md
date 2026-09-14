@@ -299,7 +299,7 @@ secret: config.get<string>('JWT_SECRET', 'dev-only-insecure-secret-change-me'),
 | 3 | אימות env באתחול; הפרדת `OAUTH_STATE_SECRET`; `aud`/`purpose` ב-guard | I1, C6, C7 |
 | 4 | מיגרציות אמיתיות + RLS כמיגרציה גרסאית + `migrate deploy` בפריסה | C11, C12 |
 | 5 | `ValidationPipe` + DTOs + throttler + roles guard | I2, I4, I7, I20, I22 |
-| 6 | תור עבודות (BullMQ) + scheduler + idempotency | C8, C9, C10, C14, I9, I11 |
+| 6 | ~~תור עבודות (BullMQ) + scheduler + idempotency~~ ✅ | C8, C9, C10, C14, I9, I11 |
 | 7 | `Timestamptz`, `Decimal`, אינדקסים, עימוד, cascade | C15, C16, C17, C18, I15, I17 |
 | 8 | קשיחות LLM: allowlist ל-template, תקרת אורך, prompt caching, תקציב | C19, C20, C21, I28, M10 |
 | 9 | Dockerfile רב-שלבי, healthchecks, מגבלות, headers | C22, C23, C24, I30-I35 |

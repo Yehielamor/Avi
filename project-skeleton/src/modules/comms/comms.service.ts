@@ -1,5 +1,4 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { renderTemplate } from './template-renderer.util';
@@ -68,7 +67,6 @@ export class CommsService {
   // כל גוף מאזין עטוף ואינו זורק החוצה לעולם.
   // ---------------------------------------------------------------------------
 
-  @OnEvent('task.created')
   async handleTaskCreated(payload: { tenantId: string; taskId: string; source: string }): Promise<void> {
     try {
       if (payload.source !== 'EMAIL') return;
@@ -83,7 +81,6 @@ export class CommsService {
     }
   }
 
-  @OnEvent('task.closed')
   async handleTaskClosed(payload: { tenantId: string; taskId: string }): Promise<void> {
     try {
       const result = await this.sendTemplateEmail(payload.tenantId, payload.taskId, 'taskClosed');

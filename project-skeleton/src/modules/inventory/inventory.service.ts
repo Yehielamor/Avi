@@ -5,7 +5,6 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter';
 import { Prisma } from '@prisma/client';
 import { PrismaService, TenantClient } from '../../database/prisma.service';
 import { CreateInventoryItemDto } from './dto/create-inventory-item.dto';
@@ -64,14 +63,12 @@ export class InventoryService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly events: EventEmitter2,
   ) {}
 
   // EventEmitter2.emit() לא ממתין ולא תופס — מאזין async שנדחה הוא
   // unhandled rejection שמפילה את התהליך לכל הטננטים, אחרי שה-200
   // כבר נשלח. עד שה-outbox יחליף את ה-emit (קונבנציות, סעיף 7),
   // הגוף עטוף ולא זורק החוצה לעולם.
-  @OnEvent('task.closed')
   async handleTaskClosed(payload: { tenantId: string; taskId: string }): Promise<void> {
     try {
       await this.consumeForTask(payload.tenantId, payload.taskId);
@@ -172,9 +169,14 @@ export class InventoryService {
       this.logger.warn(
         `Low stock alert: "${alert.name}" (${alert.sku}) is at ${alert.quantity} units for tenant ${tenantId}`,
       );
-      // TODO: Comms module לא מאזין לאירוע הזה עדיין - hook מוכן
-      // להתראת מנהל ברגע שיתווסף template מתאים.
-      this.events.emit('inventory.low_stock', { tenantId, ...alert });
+      // נכתב ל-outbox: גם כשאין עדיין צרכן, זו שורה עמידה שאפשר
+      // לשאול עליה ("אילו פריטים התריעו החודש"). emit in-process
+      // לא השאיר שום עקבות.
+      await this.prisma.forTenant(tenantId, (tx) =>
+        tx.outboxEvent.create({
+          data: { tenantId, eventName: 'inventory.low_stock', payload: { ...alert } },
+        }),
+      );
     }
   }
 

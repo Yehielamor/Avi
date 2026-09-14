@@ -5,7 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
+
 import { Prisma } from '@prisma/client';
 import { PrismaService, TenantClient } from '../../database/prisma.service';
 import { IntegrationsService } from '../integrations/integrations.service';
@@ -78,7 +78,6 @@ export class InvoicingService {
     private readonly integrations: IntegrationsService,
   ) {}
 
-  @OnEvent('task.closed')
   async validateClosedTask(payload: { tenantId: string; taskId: string }): Promise<void> {
     const missing = await this.prisma.forTenant(payload.tenantId, async (tx) => {
       const task = await tx.task.findFirst({

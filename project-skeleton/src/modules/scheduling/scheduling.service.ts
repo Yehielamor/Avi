@@ -1,5 +1,4 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService, TenantClient } from '../../database/prisma.service';
 import { haversineDistanceKm } from '../../common/geo.util';
 
@@ -60,13 +59,11 @@ export class SchedulingService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly events: EventEmitter2,
   ) {}
 
   // EventEmitter2.emit() לא ממתין ולא תופס: דחייה כאן היא unhandled
   // rejection שמפילה את התהליך לכל הטננטים. עד שה-outbox יחליף את
   // ה-emit הישיר (קונבנציות, סעיף 7) — הגוף עטוף ולא זורק החוצה.
-  @OnEvent('task.created')
   async handleTaskCreated(payload: { tenantId: string; taskId: string; source: string }): Promise<void> {
     try {
       const result = await this.assignTask(payload.tenantId, payload.taskId);
@@ -85,9 +82,18 @@ export class SchedulingService {
     const result = await this.prisma.forTenant(tenantId, (tx) => this.assignWithin(tx, tenantId, taskId));
 
     if (result.assigned && result.userId) {
-      // אחרי commit בלבד: אירוע שנפלט מתוך הטרנזקציה עלול להתייחס
-      // לשיוך שיתגלגל לאחור.
-      this.events.emit('task.assigned', { tenantId, taskId, userId: result.userId });
+      // נכתב ל-outbox ולא נפלט in-process: אירוע שנפלט מהזיכרון אובד
+      // באתחול מחדש, ואין לו עקבות. כאן הוא שורה עמידה עם ניסיונות
+      // חוזרים. ראו docs/20-backend-conventions.md §7.
+      await this.prisma.forTenant(tenantId, (tx) =>
+        tx.outboxEvent.create({
+          data: {
+            tenantId,
+            eventName: 'task.assigned',
+            payload: { taskId, userId: result.userId },
+          },
+        }),
+      );
     }
     return result;
   }

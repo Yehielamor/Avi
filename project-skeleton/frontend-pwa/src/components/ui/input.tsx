@@ -1,0 +1,33 @@
+import { forwardRef, type InputHTMLAttributes } from 'react';
+import { cn } from '@/lib/utils';
+
+export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+  invalid?: boolean;
+}
+
+export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
+  { className, invalid, type = 'text', ...props },
+  ref,
+) {
+  return (
+    <input
+      ref={ref}
+      type={type}
+      aria-invalid={invalid || undefined}
+      className={cn(
+        'h-11 w-full rounded-(--radius-md) border bg-surface px-3 text-sm text-fg',
+        'placeholder:text-fg-subtle',
+        'transition-[border-color,box-shadow] duration-(--duration-fast)',
+        'disabled:cursor-not-allowed disabled:opacity-60 disabled:bg-surface-sunken',
+        invalid
+          ? 'border-danger focus-visible:outline-(--color-danger)'
+          : 'border-border hover:border-border-strong',
+        // אימייל, טלפון ומספרים נשארים LTR גם בטופס עברי — אחרת
+        // הסימנים (+, @, -) קופצים לצד הלא נכון בזמן ההקלדה.
+        (type === 'email' || type === 'tel' || type === 'url' || type === 'number') && 'text-start [direction:ltr]',
+        className,
+      )}
+      {...props}
+    />
+  );
+});

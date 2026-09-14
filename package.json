@@ -1,0 +1,10 @@
+{
+  "name": "craftmind-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Repo root. Exists so Vercel can build the web client without a Root Directory setting.",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "build": "cd project-skeleton/frontend-web && npm ci && npm run build"
+  }
+}

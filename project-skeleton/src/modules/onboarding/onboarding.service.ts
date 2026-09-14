@@ -13,6 +13,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { OnboardingSession, Prisma } from '@prisma/client';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
+import { assertLlmConfigured } from '../../common/llm-availability';
 import { PrismaService } from '../../database/prisma.service';
 import type { AppEnv } from '../../config/env.schema';
 import { ONBOARDING_TOOLS } from './onboarding-tools';
@@ -59,6 +60,7 @@ export interface ValidatedSession extends OnboardingSession {
 export class OnboardingService {
   private readonly logger = new Logger(OnboardingService.name);
   private readonly client: Anthropic;
+  private readonly apiKey: string;
   private readonly model: string;
   private readonly ttlHours: number;
   private readonly maxLlmCalls: number;
@@ -68,7 +70,8 @@ export class OnboardingService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<AppEnv, true>,
   ) {
-    this.client = new Anthropic({ apiKey: this.config.get('ANTHROPIC_API_KEY', { infer: true }) });
+    this.apiKey = this.config.get('ANTHROPIC_API_KEY', { infer: true });
+    this.client = new Anthropic({ apiKey: this.apiKey });
     this.model = this.config.get('ANTHROPIC_ONBOARDING_MODEL', { infer: true });
     this.ttlHours = this.config.get('ONBOARDING_SESSION_TTL_HOURS', { infer: true });
     this.maxLlmCalls = this.config.get('ONBOARDING_MAX_LLM_CALLS_PER_SESSION', { infer: true });
@@ -85,6 +88,10 @@ export class OnboardingService {
   }
 
   async start(): Promise<{ sessionId: string; sessionSecret: string; message: string }> {
+    // נבדק כאן ולא בתור הראשון: אין טעם לפתוח סשן, לשמור אותו ב-DB
+    // ולהחזיר סוד, אם ההודעה הראשונה ממילא תיכשל.
+    assertLlmConfigured(this.apiKey, 'Onboarding chat');
+
     const sessionSecret = randomBytes(SESSION_SECRET_BYTES).toString('hex');
     const greeting =
       'שלום! אני כאן כדי להכיר את העסק שלך ולהקים עבורו את המערכת. ' +

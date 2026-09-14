@@ -68,6 +68,8 @@ interface RequestOptions<T> {
   signal?: AbortSignal;
   /** מפתח אידמפוטנטיות לפעולות שמשנות מצב. */
   idempotencyKey?: string;
+  /** כותרות נוספות. משמש ל-X-Onboarding-Secret, שאין לו גוף לשבת בו. */
+  headers?: Record<string, string>;
 }
 
 /**
@@ -84,7 +86,7 @@ interface RequestOptions<T> {
 const BASE = `${(import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')}/v1`;
 
 export async function request<T = unknown>(path: string, opts: RequestOptions<T> = {}): Promise<T> {
-  const { method = 'GET', body, schema, signal, idempotencyKey } = opts;
+  const { method = 'GET', body, schema, signal, idempotencyKey, headers: extra } = opts;
 
   const headers: Record<string, string> = { Accept: 'application/json' };
 
@@ -102,6 +104,7 @@ export async function request<T = unknown>(path: string, opts: RequestOptions<T>
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+  if (extra) Object.assign(headers, extra);
 
   let res: Response;
   try {

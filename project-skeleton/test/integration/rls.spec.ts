@@ -47,7 +47,7 @@ describe('Row-Level Security — tenant isolation', () => {
   let privileged: PrismaClient;
 
   beforeAll(async () => {
-    prisma = new PrismaService();
+    prisma = PrismaService.create();
     await prisma.$connect();
 
     privileged = new PrismaClient({

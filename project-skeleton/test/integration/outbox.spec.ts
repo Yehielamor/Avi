@@ -32,7 +32,7 @@ describe('Outbox dispatch', () => {
   let privileged: PrismaClient;
 
   beforeAll(async () => {
-    prisma = new PrismaService();
+    prisma = PrismaService.create();
     await prisma.$connect();
     privileged = new PrismaClient({ datasources: { db: { url: process.env.DIRECT_DATABASE_URL } } });
     await privileged.$connect();

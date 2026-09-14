@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Prisma, type OnboardingDocumentType } from '@prisma/client';
 import { z } from 'zod';
 
+import { assertLlmConfigured } from '../../common/llm-availability';
 import { PrismaService } from '../../database/prisma.service';
 import type { AppEnv } from '../../config/env.schema';
 import { extractTextFromPdf, PdfParseTimeoutError } from './pdf-text.util';
@@ -52,6 +53,7 @@ const SYSTEM_PROMPT = `אתה מסייע לחלץ שורות פריטים ומח
 export class DocumentLearningService {
   private readonly logger = new Logger(DocumentLearningService.name);
   private readonly client: Anthropic;
+  private readonly apiKey: string;
   private readonly model: string;
   private readonly maxInputChars: number;
   private readonly maxLlmCalls: number;
@@ -60,7 +62,8 @@ export class DocumentLearningService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<AppEnv, true>,
   ) {
-    this.client = new Anthropic({ apiKey: this.config.get('ANTHROPIC_API_KEY', { infer: true }) });
+    this.apiKey = this.config.get('ANTHROPIC_API_KEY', { infer: true });
+    this.client = new Anthropic({ apiKey: this.apiKey });
     this.model = this.config.get('ANTHROPIC_EXTRACTION_MODEL', { infer: true });
     this.maxInputChars = this.config.get('LLM_MAX_INPUT_CHARS', { infer: true });
     this.maxLlmCalls = this.config.get('ONBOARDING_MAX_LLM_CALLS_PER_SESSION', { infer: true });
@@ -71,6 +74,7 @@ export class DocumentLearningService {
     docType: OnboardingDocumentType,
     file: { originalname: string; buffer: Buffer; kind: UploadKind; sizeBytes: number },
   ) {
+    assertLlmConfigured(this.apiKey, 'Document learning');
     const existing = await this.prisma.untenanted.onboardingDocument.count({
       where: { sessionId, docType },
     });

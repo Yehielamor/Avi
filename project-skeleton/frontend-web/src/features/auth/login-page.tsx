@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { useNavigate, useSearch } from '@tanstack/react-router';
+import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useState } from 'react';
 
 const schema = z.object({
@@ -101,6 +101,13 @@ export function LoginPage() {
             התחברות
           </Button>
         </form>
+
+        <p className="mt-5 text-center text-xs text-fg-muted">
+          עסק חדש?{' '}
+          <Link to="/onboarding" className="font-medium text-accent hover:underline">
+            הקמה בשיחה
+          </Link>
+        </p>
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-router';
 import { AppShell } from '@/components/app-shell';
 import { LoginPage } from '@/features/auth/login-page';
+import { OnboardingPage } from '@/features/onboarding/onboarding-page';
 import { DashboardPage } from '@/features/dashboard/dashboard-page';
 import { TasksPage } from '@/features/tasks/tasks-page';
 import { TaskDetailPage } from '@/features/tasks/task-detail-page';
@@ -42,6 +43,16 @@ const loginRoute = createRoute({
  * מסלול הגנה. חשוב: זו הסתרת UI בלבד — הטוקן נבדק בשרת בכל בקשה.
  * בדיקת קליינט לעולם אינה גבול אבטחה.
  */
+/**
+ * הקמת עסק חדש. ציבורי במכוון — אין עדיין טננט ואין משתמש, וזו כל
+ * הנקודה של המסך. הוא *לא* יושב תחת protectedRoute.
+ */
+const onboardingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/onboarding',
+  component: OnboardingPage,
+});
+
 const protectedRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'protected',
@@ -115,6 +126,7 @@ const settingsTabRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  onboardingRoute,
   protectedRoute.addChildren([
     indexRoute,
     tasksRoute,

@@ -113,14 +113,53 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   /**
+   * ה-Proxy שהקונסטרוקטור של PrismaClient מחזיר.
+   *
+   * נקבע ע"י ה-factory ב-DatabaseModule. ראו `untenanted`.
+   */
+  private proxiedSelf?: PrismaClient;
+
+
+  /**
+   * **הדרך היחידה ליצור את השירות.** אל תשתמשו ב-`new PrismaService()`.
+   *
+   * `new PrismaClient()` מחזיר Proxy, וה-`get` trap שלו קורא מהיעד
+   * בלי להעביר receiver — כך ש-`this` בתוך מתודה של המחלקה הוא היעד
+   * הגולמי ולא ה-Proxy, וליעד הגולמי אין model accessors. לכן צריך
+   * לתפוס את ה-Proxy מבחוץ, וזה המקום היחיד שבו זה קורה.
+   *
+   * ה-factory קיים כדי שלא תהיינה שתי דרכים ליצור את השירות, שאחת
+   * מהן שבורה בשקט.
+   */
+  static create(): PrismaService {
+    const service = new PrismaService();
+    service.proxiedSelf = service as unknown as PrismaClient;
+    return service;
+  }
+
+  /**
    * גישה ללא קונטקסט טננט, לטבלאות שאין להן tenantId מעצם טבען
-   * (onboarding_sessions, onboarding_documents, _prisma_migrations).
+   * (onboarding_sessions, onboarding_documents).
    *
    * השם מכוון להיות לא נוח. כל שימוש בו הוא החלטה שצריכה הצדקה,
-   * ואסור להשתמש בו לטבלה שיש לה tenantId — ה-RLS יזרוק שם ממילא,
-   * וזה בדיוק מה שאמור לקרות.
+   * ואסור להשתמש בו לטבלה שיש לה tenantId — ה-RLS יזרוק שם ממילא.
+   *
+   * למה זה לא `return this`:
+   *
+   *   זה מה שהיה כאן, וזה היה שבור. `this` הוא היעד הגולמי, שעליו
+   *   אין `onboardingSession` ואין שום מודל אחר — רק המתודות
+   *   האמיתיות כמו `$queryRaw`. התוצאה הייתה ש-raw SQL עבד ו**כל
+   *   קריאת מודל נכשלה ב-`Cannot read properties of undefined`**.
+   *   מודול ה-onboarding כולו לא עבד, ואיש לא ידע כי לא היה לו
+   *   ממשק ולא הייתה לו בדיקה.
    */
   get untenanted(): PrismaClient {
-    return this;
+    if (!this.proxiedSelf) {
+      throw new Error(
+        'PrismaService was constructed with `new` instead of PrismaService.create(). ' +
+          'Model accessors are missing on a raw instance — see the comment on this getter.',
+      );
+    }
+    return this.proxiedSelf;
   }
 }

@@ -106,7 +106,9 @@ export const envSchema = z
         GOOGLE_REDIRECT_URI: env.GOOGLE_REDIRECT_URI,
         ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY,
       })) {
-        if (!value) {
+        // placeholder נחשב חסר. הוא נראה מוגדר ונכשל רק בקריאה
+        // הראשונה, עמוק בתוך זרימת משתמש.
+        if (!value || /placeholder|replace_with|your[-_]/i.test(value)) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: [key],

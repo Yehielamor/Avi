@@ -39,6 +39,7 @@
 03-security-and-multitenancy.md בידוד טננטים — המסמך הקריטי
 04-infrastructure.md           Docker, Caddy, פריסה, רוטציית מפתחות
 05-local-development.md        מדריך הרצה
+06-deployment.md               פריסה: Vercel לחזית, VPS לשרת
 10-audit-findings.md           דוח ביקורת מלא
 20-backend-conventions.md      כללי כתיבת קוד שרת
 30-design-system.md            טוקנים, RTL, נגישות, רכיבים

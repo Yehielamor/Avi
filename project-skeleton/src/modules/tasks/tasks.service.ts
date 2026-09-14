@@ -51,6 +51,7 @@ export class TasksService {
       status?: TaskStatus;
       take?: number;
       cursor?: string;
+      customerId?: string;
       assignedToMe?: boolean;
       urgentFirst?: boolean;
     } = {},
@@ -74,6 +75,7 @@ export class TasksService {
         where: {
           tenantId,
           ...(filters.status ? { status: filters.status } : {}),
+          ...(filters.customerId ? { customerId: filters.customerId } : {}),
           ...(filters.assignedToMe ? { assignedToUserId: actorUserId } : {}),
         },
         include: { customer: true, assignedTo: true },

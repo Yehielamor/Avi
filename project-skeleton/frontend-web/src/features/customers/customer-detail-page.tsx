@@ -7,10 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PriorityBadge, TaskStatusBadge } from '@/features/tasks/task-status';
 import { PageHeader } from '@/components/page-header';
 import { request } from '@/lib/api';
-import { customerSchema } from '@/lib/schemas';
-import { formatDateTime } from '@/lib/utils';
+import { taskListSchema, customerSchema } from '@/lib/schemas';
+import { formatDateTime, formatRelative } from '@/lib/utils';
 
 export function CustomerDetailPage() {
   // strict:false — הרכיב מיוצא לפני רישום המסלול, ולכן הפרמטר אינו
@@ -23,6 +24,15 @@ export function CustomerDetailPage() {
     queryFn: ({ signal }) =>
       request(`/customers/${customerId}`, { schema: customerSchema, signal }),
     enabled: customerId !== '',
+  });
+
+  // הסינון עבר לשרת: `customerId` נוסף ל-ListTasksQueryDto, והאינדקס
+  // [tenantId, customerId, createdAt] כבר היה קיים. קודם זה היה 400,
+  // ולכן המסך הציג מצב ריק במקום נתונים.
+  const tasks = useQuery({
+    queryKey: ['tasks', { customerId }],
+    queryFn: ({ signal }) =>
+      request(`/tasks?customerId=${customerId}&take=20`, { schema: taskListSchema, signal }),
   });
 
   if (customer.isLoading) {
@@ -109,26 +119,46 @@ export function CustomerDetailPage() {
         <CardHeader>
           <CardTitle>משימות הלקוח</CardTitle>
         </CardHeader>
-        {/*
-          TODO(backend): אין endpoint למשימות של לקוח מסוים.
-          `GET /tasks` (ListTasksQueryDto) מקבל status / take / cursor בלבד,
-          וה-ValidationPipe רץ עם forbidNonWhitelisted — כלומר
-          `?customerId=…` יחזיר 400, ולא יסונן. סינון בצד הלקוח על עמוד
-          אחד מתוך רשימה מעומדת יציג תמונה חלקית ושקרית, ולכן לא נעשה כאן.
-          חסר: `customerId?: string` ב-ListTasksQueryDto (או
-          `GET /customers/:id/tasks`). ברגע שיתווסף — useQuery עם
-          taskListSchema ו-DataTable כמו במסך המשימות.
-        */}
-        <EmptyState
-          icon={ClipboardList}
-          title="רשימת המשימות אינה זמינה עדיין"
-          description="השרת עדיין אינו תומך בשליפת משימות לפי לקוח. בינתיים ניתן לראות את כל המשימות במסך המשימות."
-          action={
-            <Button variant="secondary" asChild>
-              <Link to="/tasks">למסך המשימות</Link>
-            </Button>
-          }
-        />
+        {tasks.isLoading ? (
+          <div className="divide-y divide-border">
+            {Array.from({ length: 3 }, (_, i) => (
+              <div key={i} className="flex items-center gap-4 px-5 py-3.5">
+                <Skeleton className="h-4 flex-1" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+            ))}
+          </div>
+        ) : tasks.isError ? (
+          <ErrorState error={tasks.error} onRetry={() => void tasks.refetch()} />
+        ) : tasks.data?.items.length === 0 ? (
+          <EmptyState
+            icon={ClipboardList}
+            title="אין משימות ללקוח הזה"
+            description="משימות נוצרות אוטומטית ממייל נכנס מהלקוח, או ידנית ממסך המשימות."
+          />
+        ) : (
+          <ul className="divide-y divide-border">
+            {tasks.data?.items.map((task) => (
+              <li key={task.id}>
+                <Link
+                  to="/tasks/$taskId"
+                  params={{ taskId: task.id }}
+                  className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-surface-hover"
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm text-fg">{task.title}</span>
+                  <PriorityBadge priority={task.priority} />
+                  <TaskStatusBadge status={task.status} />
+                  <time
+                    dateTime={task.createdAt}
+                    className="hidden w-20 shrink-0 text-start text-xs text-fg-subtle sm:block"
+                  >
+                    {formatRelative(task.createdAt)}
+                  </time>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
     </div>
   );

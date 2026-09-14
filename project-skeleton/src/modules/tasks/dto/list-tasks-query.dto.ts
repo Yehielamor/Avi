@@ -26,6 +26,18 @@ export class ListTasksQueryDto {
   cursor?: string;
 
   /**
+   * כל המשימות של לקוח מסוים.
+   *
+   * להבדיל מ-`assignedToMe`, כאן מזהה מהלקוח *כן* מתקבל: הלקוח שייך
+   * לטננט ממילא, וה-RLS חוסם מזהה של טננט אחר. מה ש-`assignedToMe`
+   * מגן עליו הוא שונה — שטכנאי לא יראה את התור של עמיתו *בתוך*
+   * אותו טננט.
+   */
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
+
+  /**
    * רק המשימות המשויכות למשתמש המחובר.
    *
    * boolean ולא `assignedToUserId`: אילו הלקוח היה שולח מזהה, כל

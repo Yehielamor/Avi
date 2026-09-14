@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { ClipboardList, Plus, Search } from 'lucide-react';
+import { ClipboardList, Search } from 'lucide-react';
 import { useDeferredValue, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
@@ -10,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/page-header';
 import { PriorityBadge, TaskStatusBadge, statusLabel } from './task-status';
+import { NewTaskDialog } from './new-task-dialog';
 import { request } from '@/lib/api';
 import { taskListSchema, taskStatusSchema, type TaskStatus } from '@/lib/schemas';
 import { cn, formatRelative } from '@/lib/utils';
@@ -43,12 +43,7 @@ export function TasksPage() {
       <PageHeader
         title="משימות"
         description="כל העבודות במערכת"
-        action={
-          <Button size="sm">
-            <Plus aria-hidden />
-            משימה חדשה
-          </Button>
-        }
+        action={<NewTaskDialog />}
       />
 
       <div className="flex flex-wrap items-center gap-3">

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Children, cloneElement, isValidElement, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -26,8 +26,21 @@ export function Field({
     .filter(Boolean)
     .join(' ');
 
+  // ה-aria-describedby חייב לשבת על *השדה*, לא על העוטף — קורא מסך
+  // מקריא רק את מה שמקושר לפקד עצמו. קודם הוא נכתב על ה-div ולכן
+  // הודעות השגיאה לא הוקראו כלל.
+  const child = Children.only(children);
+  const described =
+    isValidElement<{ 'aria-describedby'?: string; 'aria-invalid'?: boolean; id?: string }>(child)
+      ? cloneElement(child, {
+          id: child.props.id ?? htmlFor,
+          'aria-describedby': describedBy || undefined,
+          'aria-invalid': error ? true : child.props['aria-invalid'],
+        })
+      : child;
+
   return (
-    <div className={cn('space-y-1.5', className)} data-described-by={describedBy || undefined}>
+    <div className={cn('space-y-1.5', className)}>
       <label htmlFor={htmlFor} className="block text-xs font-medium text-fg-muted">
         {label}
         {required ? (
@@ -37,7 +50,7 @@ export function Field({
           </span>
         ) : null}
       </label>
-      {children}
+      {described}
       {hint && !error ? (
         <p id={`${htmlFor}-hint`} className="text-2xs text-fg-subtle">
           {hint}

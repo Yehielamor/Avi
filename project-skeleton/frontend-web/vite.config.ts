@@ -14,7 +14,7 @@ export default defineConfig({
     proxy: {
       // ה-API רץ על 3000. proxy נמנע מ-CORS בפיתוח ושומר על
       // ה-Host, שממנו ה-middleware מזהה טננט.
-      '/v1': { target: 'http://localhost:3000', changeOrigin: false },
+      '/v1': { target: 'http://localhost:3100', changeOrigin: false },
     },
   },
   build: { target: 'es2022', sourcemap: true },

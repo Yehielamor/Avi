@@ -7,17 +7,14 @@ import {
   Post,
   Query,
   Req,
-  UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
 
 import { TasksService } from './tasks.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CloseTaskDto } from './dto/close-task.dto';
 import { CreateManualTaskDto } from './dto/create-manual-task.dto';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 
-@UseGuards(JwtAuthGuard)
 @Controller('tasks')
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}

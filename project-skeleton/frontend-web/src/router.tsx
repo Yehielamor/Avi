@@ -9,6 +9,12 @@ import { AppShell } from '@/components/app-shell';
 import { LoginPage } from '@/features/auth/login-page';
 import { DashboardPage } from '@/features/dashboard/dashboard-page';
 import { TasksPage } from '@/features/tasks/tasks-page';
+import { TaskDetailPage } from '@/features/tasks/task-detail-page';
+import { CustomersPage } from '@/features/customers/customers-page';
+import { CustomerDetailPage } from '@/features/customers/customer-detail-page';
+import { InventoryPage } from '@/features/inventory/inventory-page';
+import { InvoicesPage } from '@/features/invoices/invoices-page';
+import { SettingsPage } from '@/features/settings/settings-page';
 import { tokenStore } from '@/lib/api';
 
 /**
@@ -21,6 +27,14 @@ const rootRoute = createRootRoute({ component: Outlet });
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
+  // משתמש עם טוקן שמנווט ל-/login מוחזר פנימה. בלי זה, "חזור"
+  // בדפדפן אחרי התחברות מציג שוב את מסך ההתחברות.
+  beforeLoad: () => {
+    if (tokenStore.get()) throw redirect({ to: '/' });
+  },
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
+    redirect: typeof search['redirect'] === 'string' ? search['redirect'] : undefined,
+  }),
   component: LoginPage,
 });
 
@@ -58,15 +72,46 @@ const tasksRoute = createRoute({
 const taskDetailRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/tasks/$taskId',
-  component: () => <div className="text-sm text-fg-muted">מסך פרטי משימה — בבנייה</div>,
+  component: TaskDetailPage,
 });
 
-const placeholder = (title: string) =>
-  createRoute({
-    getParentRoute: () => protectedRoute,
-    path: `/${title}`,
-    component: () => <div className="text-sm text-fg-muted">מסך {title} — בבנייה</div>,
-  });
+const customersRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/customers',
+  component: CustomersPage,
+});
+
+const customerDetailRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/customers/$customerId',
+  component: CustomerDetailPage,
+});
+
+const inventoryRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/inventory',
+  component: InventoryPage,
+});
+
+const invoicesRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/invoices',
+  component: InvoicesPage,
+});
+
+// `/settings` ו-`/settings/$tab` שניהם מגיעים ל-SettingsPage: ה-callback
+// של Google מפנה ל-/settings/integrations, ובלי הנתיב השני זה 404.
+const settingsRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/settings',
+  component: SettingsPage,
+});
+
+const settingsTabRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/settings/$tab',
+  component: SettingsPage,
+});
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
@@ -74,10 +119,12 @@ const routeTree = rootRoute.addChildren([
     indexRoute,
     tasksRoute,
     taskDetailRoute,
-    placeholder('customers'),
-    placeholder('inventory'),
-    placeholder('invoices'),
-    placeholder('settings'),
+    customersRoute,
+    customerDetailRoute,
+    inventoryRoute,
+    invoicesRoute,
+    settingsRoute,
+    settingsTabRoute,
   ]),
 ]);
 

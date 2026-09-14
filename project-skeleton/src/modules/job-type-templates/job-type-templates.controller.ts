@@ -7,15 +7,12 @@ import {
   ParseUUIDPipe,
   Post,
   Req,
-  UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
 
 import { JobTypeTemplatesService } from './job-type-templates.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateJobTypeTemplateDto } from './dto/create-job-type-template.dto';
 
-@UseGuards(JwtAuthGuard)
 @Controller('job-type-templates')
 export class JobTypeTemplatesController {
   constructor(private readonly service: JobTypeTemplatesService) {}

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useState } from 'react';
 
 const schema = z.object({
@@ -16,6 +17,10 @@ type FormValues = z.infer<typeof schema>;
 
 export function LoginPage() {
   const { login } = useAuth();
+  const navigate = useNavigate();
+  // ה-guard של המסלול שומר לאן המשתמש ניסה להגיע לפני שהופנה לכאן,
+  // כדי שהתחברות תחזיר אותו לשם ולא למסך הבית.
+  const search = useSearch({ strict: false }) as { redirect?: string };
   const [serverError, setServerError] = useState<string | null>(null);
 
   const {
@@ -28,6 +33,10 @@ export function LoginPage() {
     setServerError(null);
     try {
       await login(values.email, values.password);
+      // הניווט חייב לקרות כאן במפורש: עדכון ה-state לבדו לא מזיז
+      // את ה-router, והמשתמש היה נשאר תקוע במסך ההתחברות אחרי
+      // התחברות מוצלחת.
+      await navigate({ to: search.redirect ?? '/', replace: true });
     } catch (err) {
       // השרת מחזיר הודעה אחידה לשם משתמש לא קיים ולסיסמה שגויה —
       // אין למסור כאן מידע שמאפשר לגלות אילו חשבונות קיימים.

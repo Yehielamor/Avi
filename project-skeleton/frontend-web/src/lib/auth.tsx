@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { request, tokenStore, UNAUTHORIZED_EVENT } from './api';
-import { sessionSchema, type Session } from './schemas';
+import { authResponseSchema, sessionSchema, type Session } from './schemas';
 
 interface AuthState {
   session: Session | null;
@@ -48,13 +48,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const s = await request('/auth/login', {
+    const res = await request('/auth/login', {
       method: 'POST',
       body: { email, password },
-      schema: sessionSchema,
+      schema: authResponseSchema,
     });
-    tokenStore.set(s.token);
-    setSession(s);
+    tokenStore.set(res.accessToken);
+    // הטוקן לא נשמר בסשן עצמו — הוא ב-tokenStore. שמירתו גם ב-state
+    // הייתה מציגה אותו ב-React DevTools בלי שום צורך.
+    const { accessToken: _token, ...session } = res;
+    setSession(session);
     setStatus('authenticated');
   }, []);
 

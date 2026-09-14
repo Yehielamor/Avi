@@ -7,18 +7,15 @@ import {
   Post,
   Query,
   Req,
-  UseGuards,
 } from '@nestjs/common';
 import { NotFoundException } from '@nestjs/common';
 import type { Request } from 'express';
 
 import { CustomersService } from './customers.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { ListCustomersQueryDto } from './dto/list-customers-query.dto';
 import { SearchCustomersQueryDto } from './dto/search-customers-query.dto';
 
-@UseGuards(JwtAuthGuard)
 @Controller('customers')
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}

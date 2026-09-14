@@ -67,6 +67,11 @@ COPY --chown=node:node --from=build     /app/dist         ./dist
 COPY --chown=node:node prisma           ./prisma
 COPY --chown=node:node package.json     ./
 
+# גופנים עבריים לחשבוניות. *לא* אופציונלי: invoice-pdf.util.ts זורק
+# במפורש אם הם חסרים, כי הגרסה הקודמת נפלה בשקט ל-Helvetica והפיקה
+# חשבוניות עם טקסט עברי משובש — המסמך שמגיע לרואה החשבון של הלקוח.
+COPY --chown=node:node assets/fonts     ./assets/fonts
+
 EXPOSE 3000
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \

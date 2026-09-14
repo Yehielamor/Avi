@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Post, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 
@@ -34,6 +34,19 @@ export class AuthController {
   @Post('register')
   register(@Req() req: Request, @Body() body: RegisterDto) {
     return this.authService.register(this.requireTenant(req), body);
+  }
+
+  /**
+   * שחזור סשן. הקליינט קורא לזה בעלייה כשיש לו טוקן שמור.
+   *
+   * *לא* מסומן @Public, וזו הנקודה: הוא דורש טוקן תקף ומאמת מול
+   * ה-DB שהמשתמש עדיין פעיל — לא רק שהחתימה תקינה. משתמש שהושבת
+   * אחרי הנפקת הטוקן נחסם כאן.
+   */
+  @Get('me')
+  me(@Req() req: Request) {
+    const user = req.user!; // ה-guard הגלובלי כבר אימת
+    return this.authService.getSession(user.tenantId, user.id);
   }
 
   @Public()

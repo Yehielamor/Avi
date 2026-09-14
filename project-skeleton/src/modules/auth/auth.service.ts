@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { Prisma, UserRole } from '@prisma/client';
+import { Prisma, UserRole, Vertical } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../../database/prisma.service';
@@ -39,11 +39,30 @@ export interface JwtPayload {
   mustChangePassword: boolean;
 }
 
+export interface SessionUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  mustChangePassword: boolean;
+}
+
+export interface SessionTenant {
+  id: string;
+  name: string;
+  subdomain: string;
+  vertical: Vertical;
+}
+
 export interface AuthResponse {
   accessToken: string;
   mustChangePassword: boolean;
-  user: { id: string; name: string; email: string; role: UserRole };
+  user: SessionUser;
+  tenant: SessionTenant;
 }
+
+/** תשובת GET /auth/me — זהה, בלי טוקן חדש. */
+export type SessionResponse = Omit<AuthResponse, 'accessToken'>;
 
 /**
  * hash של סיסמה לא קיימת, לבדיקת השוואה מדומה בכניסה עם אימייל שאינו
@@ -83,7 +102,7 @@ export class AuthService {
           data: { tenantId, email, passwordHash, name: params.name, role: UserRole.FIELD },
         }),
       );
-      return this.buildAuthResponse(user);
+      return this.buildAuthResponse(user, await this.loadTenant(tenantId));
     } catch (err: unknown) {
       // הסתמכות על האילוץ ב-DB במקום findFirst-ואז-create: השני הוא race
       // שבו שתי בקשות מקבילות עוברות שתיהן את הבדיקה.
@@ -114,7 +133,7 @@ export class AuthService {
       tx.user.updateMany({ where: { id: user.id, tenantId }, data: { lastLoginAt: new Date() } }),
     );
 
-    return this.buildAuthResponse(user);
+    return this.buildAuthResponse(user, await this.loadTenant(tenantId));
   }
 
   /**
@@ -145,17 +164,20 @@ export class AuthService {
     );
 
     this.logger.log({ tenantId, userId }, 'Password changed');
-    return this.buildAuthResponse(updated);
+    return this.buildAuthResponse(updated, await this.loadTenant(tenantId));
   }
 
-  private buildAuthResponse(user: {
-    id: string;
-    tenantId: string;
-    role: UserRole;
-    name: string;
-    email: string;
-    mustChangePassword: boolean;
-  }): AuthResponse {
+  private buildAuthResponse(
+    user: {
+      id: string;
+      tenantId: string;
+      role: UserRole;
+      name: string;
+      email: string;
+      mustChangePassword: boolean;
+    },
+    tenant: SessionTenant,
+  ): AuthResponse {
     const payload: JwtPayload = {
       sub: user.id,
       tenantId: user.tenantId,
@@ -171,8 +193,61 @@ export class AuthService {
         expiresIn: this.config.get('JWT_EXPIRES_IN', { infer: true }),
       }),
       mustChangePassword: user.mustChangePassword,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        mustChangePassword: user.mustChangePassword,
+      },
+      tenant,
     };
+  }
+
+  /**
+   * טוען את פרטי הטננט לתשובת הסשן.
+   *
+   * רץ תחת forTenant כמו כל שאר הקוד — ה-policy על `tenants` היא
+   * `id = current_tenant_id()`, ולכן זה מחזיר בדיוק שורה אחת: זו של
+   * הטננט הנוכחי. אין כאן צורך בשום עקיפה.
+   */
+  private async loadTenant(tenantId: string): Promise<SessionTenant> {
+    const tenant = await this.prisma.forTenant(tenantId, (tx) =>
+      tx.tenant.findFirst({
+        where: { id: tenantId },
+        select: { id: true, name: true, subdomain: true, vertical: true },
+      }),
+    );
+    if (!tenant) throw new UnauthorizedException('Tenant not found');
+    return tenant;
+  }
+
+  /**
+   * שחזור סשן מטוקן קיים.
+   *
+   * הקליינט לא יכול להסתמך על הטוקן לבדו: המשתמש עשוי להיות מושבת,
+   * התפקיד שלו שונה, או שהטננט הופסק — מאז שהטוקן הונפק. לכן זו
+   * שאילתה אמיתית ל-DB ולא פענוח של ה-JWT.
+   */
+  async getSession(tenantId: string, userId: string): Promise<SessionResponse> {
+    const [user, tenant] = await Promise.all([
+      this.prisma.forTenant(tenantId, (tx) =>
+        tx.user.findFirst({
+          where: { id: userId, tenantId, isActive: true },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            mustChangePassword: true,
+          },
+        }),
+      ),
+      this.loadTenant(tenantId),
+    ]);
+
+    if (!user) throw new UnauthorizedException('User is no longer active');
+    return { mustChangePassword: user.mustChangePassword, user, tenant };
   }
 
   /**

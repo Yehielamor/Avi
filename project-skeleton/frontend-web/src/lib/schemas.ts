@@ -101,20 +101,35 @@ export const invoiceSchema = z.object({
 });
 export type Invoice = z.infer<typeof invoiceSchema>;
 
-export const sessionSchema = z.object({
-  token: z.string(),
-  user: z.object({
-    id: z.string().uuid(),
-    name: z.string(),
-    email: z.string(),
-    role: userRoleSchema,
-    mustChangePassword: z.boolean().default(false),
-  }),
-  tenant: z.object({
-    id: z.string().uuid(),
-    name: z.string(),
-    subdomain: z.string(),
-    vertical: verticalSchema,
-  }),
+const sessionUserSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  email: z.string(),
+  role: userRoleSchema,
+  mustChangePassword: z.boolean(),
 });
+
+const sessionTenantSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  subdomain: z.string(),
+  vertical: verticalSchema,
+});
+
+/** GET /auth/me — סשן ללא טוקן חדש. */
+export const sessionSchema = z.object({
+  mustChangePassword: z.boolean(),
+  user: sessionUserSchema,
+  tenant: sessionTenantSchema,
+});
+
+/**
+ * POST /auth/login ו-/auth/change-password.
+ * השדה הוא `accessToken`, לא `token` — תואם ל-AuthResponse בשרת.
+ */
+export const authResponseSchema = sessionSchema.extend({
+  accessToken: z.string().min(1),
+});
+export type AuthResponse = z.infer<typeof authResponseSchema>;
+
 export type Session = z.infer<typeof sessionSchema>;

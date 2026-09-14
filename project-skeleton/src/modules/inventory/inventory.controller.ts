@@ -7,17 +7,14 @@ import {
   Param,
   Query,
   Req,
-  UseGuards,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { InventoryService } from './inventory.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateInventoryItemDto } from './dto/create-inventory-item.dto';
 import { AdjustQuantityDto } from './dto/adjust-quantity.dto';
 import { ListInventoryQueryDto } from './dto/list-inventory.query.dto';
 
-@UseGuards(JwtAuthGuard)
 @Controller('inventory')
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}

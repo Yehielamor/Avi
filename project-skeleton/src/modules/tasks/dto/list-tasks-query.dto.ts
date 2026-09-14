@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 import { TaskStatus } from '@prisma/client';
 
 /**
@@ -24,4 +24,30 @@ export class ListTasksQueryDto {
   @IsOptional()
   @IsUUID()
   cursor?: string;
+
+  /**
+   * רק המשימות המשויכות למשתמש המחובר.
+   *
+   * boolean ולא `assignedToUserId`: אילו הלקוח היה שולח מזהה, כל
+   * טכנאי היה יכול לבקש את התור של עמיתו. כאן הזהות נלקחת מהטוקן
+   * ואינה ניתנת להצהרה.
+   *
+   * ה-transform נדרש כי query string הוא תמיד מחרוזת — בלעדיו
+   * `?assignedToMe=false` היה מתפרש כ-true.
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true' || value === '1')
+  @IsBoolean()
+  assignedToMe?: boolean;
+
+  /**
+   * מיון לפי עדיפות ואז תאריך, במקום תאריך בלבד.
+   *
+   * ה-PWA של השטח מיין בצד הלקוח, ולכן המיון היה נכון רק בתוך העמוד
+   * שנשלף — משימה דחופה בעמוד השני הופיעה אחרי משימות רגילות.
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true' || value === '1')
+  @IsBoolean()
+  urgentFirst?: boolean;
 }

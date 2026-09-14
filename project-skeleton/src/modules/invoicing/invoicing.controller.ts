@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Req } from '@
 import { UserRole } from '@prisma/client';
 import type { Request } from 'express';
 
-import {Roles} from '../../common/decorators/roles.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { GenerateInvoiceDto } from './dto/generate-invoice.dto';
 import { InvoicingService } from './invoicing.service';
 
@@ -21,6 +21,7 @@ export class InvoicingController {
     return this.invoicingService.findAll(req.tenantId!, customerId);
   }
 
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
   @Get(':id')
   findOne(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string) {
     return this.invoicingService.findOne(req.tenantId!, id);

@@ -38,6 +38,7 @@ export class IntegrationsController {
     private readonly prisma: PrismaService,
   ) {}
 
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
   @Get()
   listStatus(@Req() req: Request) {
     return this.integrationsService.listStatus(req.tenantId!);

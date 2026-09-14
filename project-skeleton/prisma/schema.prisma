@@ -303,7 +303,10 @@ model Task {
   // ה-constraint שהופך את ה-dedup של Gmail מ-race ל-ערובה (C14).
   @@unique([tenantId, sourceEmailId])
   @@index([tenantId, status, createdAt(sort: Desc)])
-  @@index([tenantId, assignedToUserId, status])
+  // "המשימות שלי", ממוין דחוף-קודם. בלי priority ו-createdAt
+  // באינדקס, השאילתה של ה-PWA שולפת את כל משימות הטכנאי וממיינת
+  // אותן בזיכרון בכל טעינת מסך.
+  @@index([tenantId, assignedToUserId, status, priority, createdAt(sort: Desc)])
   // בדיוק צורת ה-query של הפקת חשבונית לתקופה (I15).
   @@index([tenantId, customerId, status, closedAt])
   @@index([tenantId, createdAt(sort: Desc)])

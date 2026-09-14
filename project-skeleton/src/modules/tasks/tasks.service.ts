@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TaskStatus } from '@prisma/client';
 import type { Task } from '@prisma/client';
 
@@ -47,15 +47,41 @@ export class TasksService {
    */
   async findAll(
     tenantId: string,
-    filters: { status?: TaskStatus; take?: number; cursor?: string } = {},
+    filters: {
+      status?: TaskStatus;
+      take?: number;
+      cursor?: string;
+      assignedToMe?: boolean;
+      urgentFirst?: boolean;
+    } = {},
+    /**
+     * מזהה המשתמש המחובר, מהטוקן.
+     *
+     * `assignedToMe` הוא boolean ולא מזהה, וזו הנקודה: הזהות נקבעת
+     * כאן מהטוקן ואינה ניתנת להצהרה ע"י הלקוח. אחרת כל טכנאי היה
+     * יכול לשלוף את התור של עמיתו.
+     */
+    actorUserId?: string,
   ): Promise<{ items: Task[]; nextCursor: string | null }> {
     const take = filters.take ?? DEFAULT_PAGE_SIZE;
 
+    if (filters.assignedToMe && !actorUserId) {
+      throw new BadRequestException('assignedToMe requires an authenticated user');
+    }
+
     const items = await this.prisma.forTenant(tenantId, (tx) =>
       tx.task.findMany({
-        where: { tenantId, ...(filters.status ? { status: filters.status } : {}) },
+        where: {
+          tenantId,
+          ...(filters.status ? { status: filters.status } : {}),
+          ...(filters.assignedToMe ? { assignedToUserId: actorUserId } : {}),
+        },
         include: { customer: true, assignedTo: true },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        // priority עולה = דחוף קודם (1=דחוף). המיון נעשה ב-DB ולא
+        // בקליינט, אחרת הוא נכון רק בתוך העמוד שנשלף.
+        orderBy: filters.urgentFirst
+          ? [{ priority: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }]
+          : [{ createdAt: 'desc' }, { id: 'desc' }],
         take,
         ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
       }),

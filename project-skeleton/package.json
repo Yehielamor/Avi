@@ -34,7 +34,8 @@
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f app",
     "ci": "npm run format:check && npm run lint && npm run typecheck && npm run test",
-    "user:create": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' scripts/create-user.ts"
+    "user:create": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' scripts/create-user.ts",
+    "scan:policies": "node scripts/scan-route-policies.mjs"
   },
   "prisma": {
     "seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts"

@@ -25,9 +25,10 @@ export class TasksController {
   @AnyRole()
   @Get()
   findAll(@Req() req: Request, @Query() query: ListTasksQueryDto) {
-    return this.tasksService.findAll(req.tenantId!, query);
+    return this.tasksService.findAll(req.tenantId!, query, req.user?.id);
   }
 
+  @AnyRole()
   @Get(':id')
   findOne(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string) {
     return this.tasksService.findOne(req.tenantId!, id);
@@ -39,6 +40,7 @@ export class TasksController {
     return this.tasksService.createManual(req.tenantId!, body, req.user?.id);
   }
 
+  @AnyRole()
   @Post(':id/close')
   close(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: CloseTaskDto) {
     return this.tasksService.close(req.tenantId!, id, body.checklist, req.user?.id);

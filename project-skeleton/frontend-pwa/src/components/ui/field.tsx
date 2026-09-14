@@ -41,7 +41,7 @@ export function Field({
 
   return (
     <div className={cn('space-y-1.5', className)}>
-      <label htmlFor={htmlFor} className="block text-xs font-medium text-fg-muted">
+      <label htmlFor={htmlFor} className="block text-sm font-medium text-fg-muted">
         {label}
         {required ? (
           <span className="text-danger" aria-hidden>
@@ -52,12 +52,12 @@ export function Field({
       </label>
       {described}
       {hint && !error ? (
-        <p id={`${htmlFor}-hint`} className="text-2xs text-fg-subtle">
+        <p id={`${htmlFor}-hint`} className="text-xs text-fg-subtle">
           {hint}
         </p>
       ) : null}
       {error ? (
-        <p id={`${htmlFor}-error`} className="text-2xs text-danger">
+        <p id={`${htmlFor}-error`} className="text-xs text-danger">
           {error}
         </p>
       ) : null}

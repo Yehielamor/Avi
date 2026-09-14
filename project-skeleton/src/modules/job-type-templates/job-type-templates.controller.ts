@@ -26,6 +26,7 @@ export class JobTypeTemplatesController {
     return this.service.findAllActive(req.tenantId!);
   }
 
+  @AnyRole()
   @Get(':id')
   async findOne(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string) {
     const template = await this.service.findOne(req.tenantId!, id);

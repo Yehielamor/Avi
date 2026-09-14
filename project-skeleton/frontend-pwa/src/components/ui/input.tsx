@@ -15,7 +15,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       type={type}
       aria-invalid={invalid || undefined}
       className={cn(
-        'h-11 w-full rounded-(--radius-md) border bg-surface px-3 text-sm text-fg',
+        // h-14 ו-text-base: אזור מגע של 56px, וטקסט שלא מקטין את
+        // הפונט מתחת ל-16px — ב-iOS זה מה שגורם לדפדפן להזים את
+        // המסך בכל פוקוס על שדה.
+        'h-14 w-full rounded-(--radius-lg) border bg-surface px-4 text-base text-fg',
         'placeholder:text-fg-subtle',
         'transition-[border-color,box-shadow] duration-(--duration-fast)',
         'disabled:cursor-not-allowed disabled:opacity-60 disabled:bg-surface-sunken',

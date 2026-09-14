@@ -4,8 +4,24 @@
     {
       "name": "craftmind-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "project-skeleton/frontend-web"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "project-skeleton/frontend-web"
+      ],
       "port": 5173
+    },
+    {
+      "name": "craftmind-pwa",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "project-skeleton/frontend-pwa"
+      ],
+      "port": 5174
     }
   ]
 }

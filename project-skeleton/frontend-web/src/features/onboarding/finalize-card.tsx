@@ -24,8 +24,12 @@ import { onboardingApi, sessionStore, type FinalizeResult, type StoredSession } 
  * השלב האחרון: יצירת הטננט בפועל.
  *
  * מאחורי אישור מפורש, כי זו הפעולה הבלתי הפיכה היחידה בזרימה — היא
- * יוצרת חברה, משתמשים, מחירון וסוגי עבודה, ושולחת הזמנות למיילים
- * שנמסרו בשיחה. אין כאן "בטל".
+ * יוצרת חברה, משתמשים, מחירון וסוגי עבודה. אין כאן "בטל".
+ *
+ * שליחת ההזמנות אינה מחוברת (אירוע `user.invited` נכתב ל-outbox ואין
+ * לו צרכן). הטקסט כאן אומר זאת במפורש: בלי הזמנה אף אחד לא יכול
+ * להיכנס לחשבון שזה עתה נוצר, וזה הדבר החשוב ביותר שהמשתמש צריך
+ * לדעת ברגע הזה.
  */
 export function FinalizeCard({
   session,
@@ -81,11 +85,17 @@ export function FinalizeCard({
             <DialogBody>
               <ul className="space-y-1.5 text-xs text-fg-muted">
                 <li>• ייווצר חשבון לעסק עם כתובת ייעודית.</li>
-                <li>• כל חבר צוות יקבל הזמנה למייל שנמסר, להגדרת סיסמה.</li>
                 <li>• סוגי העבודה והמחירון שנאספו ייטענו למערכת.</li>
+                <li>• ייווצרו משתמשים לכל חברי הצוות שנמסרו.</li>
               </ul>
+              {/*
+                שליחת ההזמנות אינה מחוברת. זו לא הערת שוליים — בלי
+                הזמנה אף אחד לא יכול להיכנס לחשבון שנוצר, ולכן זה
+                חייב להיאמר *לפני* הלחיצה ולא אחריה.
+              */}
               <p className="rounded-(--radius-md) border border-warning-border bg-warning-subtle p-3 text-2xs text-warning">
-                ודא שכתובות המייל של הצוות נכונות — ההזמנות נשלחות אליהן.
+                <strong>הזמנות במייל אינן פעילות עדיין.</strong> המשתמשים ייווצרו, אבל לא יישלח
+                אליהם קישור להגדרת סיסמה — מנהל המערכת יצטרך להגדיר להם סיסמאות ידנית.
               </p>
             </DialogBody>
             <DialogFooter>
@@ -119,7 +129,7 @@ function Done({ result }: { result: FinalizeResult | null }) {
               נוצרו {result.jobTypesCreated} סוגי עבודה ו-{result.priceCodesCreated} קודי מחיר.
             </p>
             <div>
-              <p className="mb-1 font-medium text-fg">הזמנות נשלחו אל:</p>
+              <p className="mb-1 font-medium text-fg">נוצרו משתמשים עבור:</p>
               <ul className="space-y-0.5">
                 {result.users.map((u) => (
                   <li key={u.email} className="text-fg-muted">
@@ -131,13 +141,15 @@ function Done({ result }: { result: FinalizeResult | null }) {
             <p className="rounded-(--radius-md) border border-border bg-surface p-3 text-fg-muted">
               הכתובת שלכם:{' '}
               <span className="ltr-inline font-medium text-fg">{result.subdomain}</span>
-              <br />
-              כל חבר צוות מגדיר סיסמה דרך הקישור שנשלח למייל שלו.
+            </p>
+            <p className="rounded-(--radius-md) border border-warning-border bg-warning-subtle p-3 text-warning">
+              <strong>לא נשלחו הזמנות.</strong> כדי להיכנס לראשונה, יש להגדיר סיסמאות למשתמשים
+              דרך מנהל המערכת.
             </p>
           </>
         ) : (
           <p className="text-fg-muted">
-            השיחה הזו כבר הושלמה והמערכת הוקמה. אם לא קיבלת הזמנה למייל, פנה למי שביצע את ההקמה.
+            השיחה הזו כבר הושלמה והמערכת הוקמה. פנה למי שביצע את ההקמה כדי לקבל גישה.
           </p>
         )}
       </CardContent>

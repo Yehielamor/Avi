@@ -27,6 +27,7 @@ import {
 } from '@/components/ui';
 import { request } from '@/lib/api';
 import { customerSchema } from '@/lib/schemas';
+import { useEmailEnabled } from '@/lib/use-email-enabled';
 
 /**
  * הסכימה משקפת את `CreateManualTaskDto` בשרת אחד לאחד.
@@ -55,6 +56,7 @@ export function NewTaskDialog() {
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
   const toast = useToast();
+  const email = useEmailEnabled();
 
   // נטענים רק כשהדיאלוג נפתח — אין טעם לשלוף לקוחות ותבניות
   // בכל טעינה של מסך הרשימה.
@@ -100,7 +102,10 @@ export function NewTaskDialog() {
         idempotencyKey: idempotencyKey,
       }),
     onSuccess: async () => {
-      toast.success('המשימה נוצרה', 'השיוך לטכנאי והמייל ללקוח מטופלים ברקע');
+      toast.success(
+        'המשימה נוצרה',
+        email.enabled ? 'השיוך לטכנאי והמייל ללקוח מטופלים ברקע' : 'השיוך לטכנאי מטופל ברקע',
+      );
       setOpen(false);
       await qc.invalidateQueries({ queryKey: ['tasks'] });
     },

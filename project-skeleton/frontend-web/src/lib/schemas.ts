@@ -117,6 +117,17 @@ const sessionTenantSchema = z.object({
 });
 
 /** GET /auth/me — סשן ללא טוקן חדש. */
+export const dashboardStatsSchema = z.object({
+  openTasks: z.number().int(),
+  unassignedTasks: z.number().int(),
+  closedThisMonth: z.number().int(),
+  overdueUrgent: z.number().int(),
+  lowStockItems: z.number().int(),
+  /** Decimal מהשרת — מחרוזת, לא number. ראו formatCurrency. */
+  revenueThisMonth: money,
+});
+export type DashboardStats = z.infer<typeof dashboardStatsSchema>;
+
 export const sessionSchema = z.object({
   mustChangePassword: z.boolean(),
   user: sessionUserSchema,

@@ -19,6 +19,7 @@ import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CustomersModule } from './modules/customers/customers.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { JobTypeTemplatesModule } from './modules/job-type-templates/job-type-templates.module';
 import { SchedulingModule } from './modules/scheduling/scheduling.module';
@@ -104,6 +105,7 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
     TenantsModule,
     AuthModule,
     CustomersModule,
+    DashboardModule,
     TasksModule,
     JobTypeTemplatesModule,
     SchedulingModule,

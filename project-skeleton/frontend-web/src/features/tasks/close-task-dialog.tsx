@@ -15,6 +15,7 @@ import {
 } from '@/components/ui';
 import { request } from '@/lib/api';
 import type { ChecklistItem } from '@/lib/schemas';
+import { useEmailEnabled } from '@/lib/use-email-enabled';
 
 /**
  * סגירת משימה היא פעולה שמפעילה שרשרת: ניכוי מלאי, שורות חיוב,
@@ -34,6 +35,7 @@ export function CloseTaskDialog({
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
   const toast = useToast();
+  const email = useEmailEnabled();
 
   const close = useMutation({
     mutationFn: () =>
@@ -55,7 +57,13 @@ export function CloseTaskDialog({
       // משקפת מה באמת קרה — "נסגרה" על משימה שכבר הייתה סגורה
       // זה שקר קטן שמבלבל בהמשך.
       if (result?.alreadyClosed) toast.info('המשימה כבר הייתה סגורה');
-      else toast.success('המשימה נסגרה', 'המלאי, החיוב והמייל ללקוח מטופלים ברקע');
+      else
+        toast.success(
+          'המשימה נסגרה',
+          email.enabled
+            ? 'המלאי, החיוב והמייל ללקוח מטופלים ברקע'
+            : 'המלאי והחיוב מטופלים ברקע',
+        );
       await qc.invalidateQueries({ queryKey: ['task', taskId] });
       await qc.invalidateQueries({ queryKey: ['tasks'] });
     },
@@ -100,7 +108,15 @@ export function CloseTaskDialog({
             <li>• המשימה תסומן כהושלמה.</li>
             {consumesStock ? <li>• המלאי ינוכה לפי הפריטים שסומנו.</li> : null}
             {billable ? <li>• ייווצרו שורות חיוב לחשבונית הבאה.</li> : null}
-            <li>• יישלח מייל עדכון ללקוח.</li>
+            {email.enabled ? (
+              <li>• יישלח מייל עדכון ללקוח.</li>
+            ) : (
+              // אמירת האמת עדיפה על שתיקה: המשתמש צריך לדעת שהלקוח
+              // לא יעודכן, כדי שיוכל להתקשר בעצמו.
+              <li className="text-warning">
+                • הלקוח <strong>לא</strong> יעודכן — אין חשבון מייל מחובר.
+              </li>
+            )}
           </ul>
         </DialogBody>
 

@@ -112,7 +112,7 @@ export function ProfilePanel() {
       <Card>
         <CardHeader>
           <CardTitle>שינוי סיסמה</CardTitle>
-          <CardDescription>לאחר השינוי תונפק לסשן הזה כניסה מחודשת אוטומטית</CardDescription>
+          <CardDescription>השרת מנפיק טוקן חדש בסיום, ולכן אין צורך להתחבר מחדש</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} noValidate className="max-w-sm space-y-4">

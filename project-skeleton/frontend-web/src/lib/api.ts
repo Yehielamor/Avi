@@ -70,7 +70,18 @@ interface RequestOptions<T> {
   idempotencyKey?: string;
 }
 
-const BASE = '/v1';
+/**
+ * בסיס ה-API.
+ *
+ * בפיתוח: נתיב יחסי, וה-proxy של Vite מעביר ל-localhost:3000. זה
+ * גם שומר על ה-Host המקורי, שממנו השרת מזהה את הטננט.
+ *
+ * בפרודקשן: השרת אינו מתארח יחד עם ה-SPA (הוא מונוליט stateful עם
+ * Postgres ו-Redis), ולכן צריך מקור מלא. VITE_API_URL מוגדר בזמן
+ * הבנייה. אם הוא חסר — נופלים לנתיב יחסי, מה שעובד כשמגישים את
+ * שניהם מאותו דומיין דרך Caddy.
+ */
+const BASE = `${(import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')}/v1`;
 
 export async function request<T = unknown>(path: string, opts: RequestOptions<T> = {}): Promise<T> {
   const { method = 'GET', body, schema, signal, idempotencyKey } = opts;
@@ -88,7 +99,7 @@ export async function request<T = unknown>(path: string, opts: RequestOptions<T>
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
       signal,
-      credentials: 'same-origin',
+      credentials: import.meta.env.VITE_API_URL ? 'include' : 'same-origin',
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err;

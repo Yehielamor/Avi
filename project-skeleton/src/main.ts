@@ -70,6 +70,11 @@ async function bootstrap(): Promise<void> {
       return callback(new Error(`Origin not allowed: ${origin}`), false);
     },
     credentials: true,
+    // X-Tenant היא כותרת מותאמת, ולכן חייבת להופיע כאן במפורש —
+    // אחרת ה-preflight נכשל והדפדפן חוסם את הבקשה עוד לפני שהיא
+    // מגיעה לשרת. Idempotency-Key מאותה סיבה.
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant', 'Idempotency-Key', 'X-Request-Id'],
+    exposedHeaders: ['X-Request-Id'],
     maxAge: 86_400,
   });
 

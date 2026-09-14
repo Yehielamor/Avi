@@ -50,7 +50,7 @@ export class TenantContextMiddleware implements NestMiddleware {
     req.requestId = requestId;
     res.setHeader('x-request-id', requestId);
 
-    const subdomain = this.extractSubdomain(req.headers.host ?? '');
+    const subdomain = this.resolveSubdomain(req);
 
     // ללא תת-דומיין (דומיין בסיס, או שמור) — אין טננט. זה תקין
     // עבור /health, /onboarding, ו-callback של OAuth.
@@ -69,6 +69,41 @@ export class TenantContextMiddleware implements NestMiddleware {
 
     req.tenantId = tenantId;
     TenantContext.run({ tenantId, requestId }, () => next());
+  }
+
+  /**
+   * מזהה את הטננט, בשתי דרכים לפי סדר עדיפות.
+   *
+   * 1. תת-דומיין של ה-Host. זו הדרך המועדפת, והיחידה כשהאפליקציה
+   *    והממשק יושבים על אותו דומיין (Caddy מול *.craftmind-ai.com).
+   *
+   * 2. כותרת X-Tenant. נדרשת כשה-API והממשק על דומיינים *שונים* —
+   *    למשל SPA ב-Vercel מול API במקום אחר. ל-Host של הבקשה אין אז
+   *    תת-דומיין של טננט, כי הוא ה-Host של ה-API.
+   *
+   * למה זה לא החלשה של הבידוד:
+   *
+   *   הכותרת קובעת רק *באיזה טננט לחפש*, בדיוק כמו שתת-דומיין עושה.
+   *   היא לא מעניקה גישה. JwtAuthGuard עדיין דורש
+   *   `payload.tenantId === req.tenantId`, ולכן טוקן של טננט א׳ נדחה
+   *   כשמוצהר טננט ב׳. וב-login עדיין צריך סיסמה תקפה של אותו טננט —
+   *   בדיוק כמו שכל אדם יכול לגשת לכל תת-דומיין ולנסות להתחבר.
+   *
+   *   ה-RLS ב-DB נאכף על ה-tenantId שנפתר כאן, לא על מה שהלקוח ביקש.
+   */
+  private resolveSubdomain(req: Request): string | null {
+    const fromHost = this.extractSubdomain(req.headers.host ?? '');
+    if (fromHost) return fromHost;
+
+    const header = req.header('x-tenant');
+    if (!header) return null;
+
+    const candidate = header.trim().toLowerCase();
+    // אותם כללים בדיוק כמו לתת-דומיין — כולל שמות שמורים.
+    if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(candidate)) return null;
+    if (TenantContextMiddleware.RESERVED.has(candidate)) return null;
+
+    return candidate;
   }
 
   /**

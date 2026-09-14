@@ -3,6 +3,9 @@ dist/
 .env
 .env.*
 !.env.example
+# משתני VITE_* נצרבים ל-bundle ולכן ציבוריים ממילא — אין בהם סוד,
+# והם חייבים להיות בגיט כדי ש-Vercel יבנה איתם.
+!frontend-web/.env.production
 *.log
 .DS_Store
 coverage/

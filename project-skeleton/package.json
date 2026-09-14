@@ -13,19 +13,16 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-
     "lint": "eslint \"{src,test}/**/*.ts\" --max-warnings 0",
     "lint:fix": "eslint \"{src,test}/**/*.ts\" --fix",
     "format": "prettier --write \"{src,test,prisma}/**/*.ts\"",
     "format:check": "prettier --check \"{src,test,prisma}/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-
     "test": "jest --config test/jest-unit.config.ts",
     "test:watch": "jest --config test/jest-unit.config.ts --watch",
     "test:cov": "jest --config test/jest-unit.config.ts --coverage",
     "test:int": "jest --config test/jest-integration.config.ts --runInBand",
     "test:all": "npm run test && npm run test:int",
-
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
@@ -33,12 +30,11 @@
     "prisma:studio": "prisma studio",
     "db:seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts",
     "db:verify-rls": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' scripts/verify-rls.ts",
-
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f app",
-
-    "ci": "npm run format:check && npm run lint && npm run typecheck && npm run test"
+    "ci": "npm run format:check && npm run lint && npm run typecheck && npm run test",
+    "user:create": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' scripts/create-user.ts"
   },
   "prisma": {
     "seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts"

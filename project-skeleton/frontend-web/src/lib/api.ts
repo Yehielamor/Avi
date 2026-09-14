@@ -87,6 +87,17 @@ export async function request<T = unknown>(path: string, opts: RequestOptions<T>
   const { method = 'GET', body, schema, signal, idempotencyKey } = opts;
 
   const headers: Record<string, string> = { Accept: 'application/json' };
+
+  // זיהוי הטננט.
+  //
+  // כשהממשק והשרת על אותו דומיין, ה-Host נושא את תת-הדומיין של
+  // הטננט והשרת פותר אותו לבד. כשהם על דומיינים שונים — SPA ב-Vercel
+  // מול API במקום אחר — ה-Host כבר לא נושא אותו, ולכן מצהירים במפורש.
+  //
+  // זו הצהרה בלבד, לא הרשאה: השרת עדיין דורש סיסמה תקפה של אותו
+  // טננט בהתחברות, ו-JwtAuthGuard דוחה טוקן שה-tenantId שלו אינו תואם.
+  const tenant = import.meta.env.VITE_TENANT;
+  if (tenant) headers['X-Tenant'] = tenant;
   const token = tokenStore.get();
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';

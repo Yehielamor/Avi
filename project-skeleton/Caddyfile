@@ -1,0 +1,71 @@
+# =============================================================================
+# CraftMind AI — reverse proxy
+#
+# תעודת wildcard ל-*.craftmind-ai.com דורשת DNS-01 challenge, לא
+# HTTP-01 — לכן ה-image נבנה עם caddy-dns/cloudflare (ראו Dockerfile.caddy).
+# דרישה מוקדמת: ה-nameservers של הדומיין מצביעים ל-Cloudflare בפועל.
+#
+# תיקונים מול הגרסה הקודמת (docs/10-audit-findings.md#I34):
+#   • בלוק header — קודם לא היה אף כותרת אבטחה. תת-דומיין של טננט
+#     היה ניתן להטמעה ב-iframe ל-clickjacking נגד זרימת ה-OAuth.
+#   • request_body max_size — חגורה שנייה מעל תקרת ה-body באפליקציה.
+# =============================================================================
+
+{
+	email admin@{$BASE_DOMAIN}
+	# מונע מ-Caddy להנפיק תעודה לכל host שנשאל עליו.
+	auto_https disable_redirects
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options    "nosniff"
+		X-Frame-Options           "DENY"
+		Referrer-Policy           "no-referrer"
+		Permissions-Policy        "geolocation=(self), camera=(), microphone=(), payment=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		# לא לחשוף מה מריץ את השרת.
+		-Server
+		-X-Powered-By
+	}
+}
+
+(tls_cloudflare) {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+		resolvers 1.1.1.1
+	}
+}
+
+*.{$BASE_DOMAIN}, {$BASE_DOMAIN} {
+	import tls_cloudflare
+	import security_headers
+
+	request_body {
+		max_size 25MB
+	}
+
+	# /health לא אמור להיות נגיש מבחוץ — הוא ל-Docker ול-LB בלבד.
+	@health path /v1/health/*
+	respond @health 404
+
+	reverse_proxy app:3000 {
+		health_uri      /v1/health/live
+		health_interval 15s
+		health_timeout  5s
+
+		# ה-middleware מזהה טננט מ-Host; חובה לשמר אותו כפי שהוא.
+		header_up Host           {http.request.host}
+		header_up X-Real-IP      {http.request.remote.host}
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto {http.request.scheme}
+	}
+}
+
+# Metabase — כבוי כברירת מחדל (docker compose profile "bi").
+bi.{$BASE_DOMAIN} {
+	import tls_cloudflare
+	import security_headers
+	reverse_proxy metabase:3000
+}

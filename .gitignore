@@ -1,0 +1,40 @@
+# ---- סודות. הכלל החשוב בקובץ הזה. ----
+# .env בכל עומק, לא רק בשורש. הסודות שנוצרו מקומית (סיסמאות DB,
+# JWT_SECRET, מפתח הצפנת טוקני האינטגרציות) לא נכנסים ל-git לעולם.
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+!**/*.key.example
+
+# ---- תלויות ותוצרי בנייה ----
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# ---- מטמון כלים ----
+.vite/
+.turbo/
+.eslintcache
+.vercel
+
+# ---- מערכת הפעלה ועורכים ----
+.DS_Store
+**/.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ---- לוגים ----
+*.log
+npm-debug.log*
+logs/

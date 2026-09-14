@@ -1,0 +1,16 @@
+# ============================================================
+# Caddy עם caddy-dns/cloudflare - נדרש כי SSL ל-wildcard
+# (*.craftmind-ai.com) לא יכול להתאמת דרך HTTP-01 הרגיל, רק דרך
+# DNS-01 (ראו הערה ב-Caddyfile ובמסמך הארכיטקטורה, סעיף 8).
+# image רגיל של caddy:2-alpine לא כולל את התוסף הזה - בונים
+# מותאם עם xcaddy.
+# ============================================================
+
+FROM caddy:2-builder-alpine AS builder
+
+RUN xcaddy build \
+    --with github.com/caddy-dns/cloudflare
+
+FROM caddy:2-alpine
+
+COPY --from=builder /usr/bin/caddy /usr/bin/caddy

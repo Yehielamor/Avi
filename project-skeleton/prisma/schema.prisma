@@ -1,0 +1,655 @@
+// ============================================================
+// Prisma Schema — CraftMind AI, Multi-Tenant
+//
+// כללי ברזל בקובץ הזה (ראו docs/03-security-and-multitenancy.md):
+//
+// 1. כל טבלה עם `tenantId` מוגנת ב-RLS עם FORCE. אין יוצא מן הכלל.
+//    להוסיף טבלה עם tenantId בלי להוסיף אותה ל-migration של ה-RLS =
+//    חור בידוד. הבדיקה ב-test/integration/rls.spec.ts נכשלת אם שכחת.
+//
+// 2. כל DateTime הוא Timestamptz. לעולם לא `timestamp without time zone`
+//    (ברירת המחדל של Prisma!) — עסק ישראלי עם שעון קיץ מאבד משימות
+//    בין תקופות חיוב. ראו docs/10-audit-findings.md#C17.
+//
+// 3. כל כסף הוא Decimal(12,2) ב-DB *ו-* Prisma.Decimal בקוד. אף פעם
+//    לא Number(). ראו docs/10-audit-findings.md#C16.
+//
+// 4. לכל FK יש אינדקס מפורש — Prisma לא יוצר אותם ב-PostgreSQL.
+//
+// 5. לכל FK יש onDelete מפורש. ברירת המחדל (Restrict) על ילד של
+//    הורה Cascade = מחיקת טננט שנכשלת תמיד.
+// ============================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["relationJoins"]
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  directUrl         = env("DIRECT_DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+// ------------------------------------------------------------
+// Enums
+// ------------------------------------------------------------
+
+enum Vertical {
+  MAINTENANCE
+  CARPENTRY
+  RETAIL
+}
+
+enum UserRole {
+  OWNER
+  MANAGER
+  FIELD
+}
+
+enum TaskStatus {
+  NEW
+  ASSIGNED
+  IN_PROGRESS
+  CLOSED
+  CANCELLED
+}
+
+enum TaskSource {
+  EMAIL
+  MANUAL
+}
+
+enum IntegrationProvider {
+  GMAIL
+  DRIVE
+  OUTLOOK
+  GREEN_INVOICE
+}
+
+enum IntegrationStatus {
+  CONNECTED
+  EXPIRED
+  ERROR
+  DISCONNECTED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  FINALIZED
+  VOID
+}
+
+enum OnboardingStatus {
+  IN_PROGRESS
+  READY_TO_FINALIZE
+  FINALIZED
+  ABANDONED
+}
+
+enum OnboardingDocumentType {
+  QUOTE
+  MATERIAL_ORDER
+}
+
+// תנועת מלאי — למה הכמות השתנתה. מחליף את הניכוי ה"שקוף" שהיה
+// קודם, שלא השאיר שום עקבות (ראו audit findings I19).
+enum StockMovementReason {
+  TASK_CONSUMPTION
+  MANUAL_ADJUSTMENT
+  RESTOCK
+  CORRECTION
+}
+
+// מצב פריט ב-outbox. הטבלה הזו היא הגשר בין כתיבה טרנזקציונית
+// לבין עבודה אסינכרונית — ראו docs/01-architecture.md#outbox
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+  DEAD
+}
+
+// ------------------------------------------------------------
+// Tenant + Config
+// ------------------------------------------------------------
+
+model Tenant {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  vertical  Vertical
+  subdomain String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  config           TenantConfig?
+  users            User[]
+  customers        Customer[]
+  jobTypeTemplates JobTypeTemplate[]
+  tasks            Task[]
+  inventoryItems   InventoryItem[]
+  stockMovements   StockMovement[]
+  priceListItems   PriceListItem[]
+  invoices         Invoice[]
+  integrations     TenantIntegration[]
+  auditLogs        AuditLog[]
+  outboxEvents     OutboxEvent[]
+  idempotencyKeys  IdempotencyKey[]
+  llmUsage         LlmUsage[]
+
+  @@map("tenants")
+}
+
+model TenantConfig {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @unique @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  enabledModules    Json
+  theme             Json
+  schedulingWeights Json?
+  emailTemplates    Json
+
+  // תקרת הוצאה חודשית על LLM לטננט, באגורות. null = ברירת המחדל
+  // הגלובלית. ראו docs/10-audit-findings.md#C19.
+  llmMonthlyBudgetMinor Int?
+
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("tenant_configs")
+}
+
+// ------------------------------------------------------------
+// JobTypeTemplate
+// ------------------------------------------------------------
+
+model JobTypeTemplate {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name          String
+  // מנורמל ל-lowercase+trim בשכבת השירות לפני כתיבה. השוואה מדויקת
+  // מול User.skills[] נכשלה בשקט על רווח נגרר (audit finding I21).
+  requiredSkill String?
+
+  fields           Json
+  defaultPriority  Int      @default(2)
+  defaultChecklist Json
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(3)
+
+  tasks Task[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive])
+  @@map("job_type_templates")
+}
+
+// ------------------------------------------------------------
+// Users
+// ------------------------------------------------------------
+
+model User {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  email        String
+  passwordHash String
+  name         String
+  role         UserRole
+  isActive     Boolean  @default(true)
+
+  // מנורמל זהה ל-JobTypeTemplate.requiredSkill
+  skills  String[]
+  homeLat Float?
+  homeLng Float?
+
+  // אילוץ החלפת סיסמה בהתחברות הראשונה — נדרש כי onboarding מייצר
+  // סיסמאות זמניות לחברי צוות (audit finding M11).
+  mustChangePassword Boolean   @default(false)
+  lastLoginAt        DateTime? @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  assignedTasks         Task[]              @relation("AssignedTasks")
+  auditLogs             AuditLog[]
+  connectedIntegrations TenantIntegration[]
+  stockMovements        StockMovement[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, role, isActive])
+  @@map("users")
+}
+
+// ------------------------------------------------------------
+// Customers
+// ------------------------------------------------------------
+
+model Customer {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name         String
+  email        String?
+  phone        String?
+  address      String?
+  lat          Float?
+  lng          Float?
+  customFields Json?
+  isActive     Boolean @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  tasks    Task[]
+  invoices Invoice[]
+
+  // חיפוש לפי אימייל ב-Gmail sync הוא התאמה *מדויקת*, לא contains.
+  // האינדקס הזה הוא מה שהופך אותו מסריקה מלאה ל-lookup (I16).
+  @@index([tenantId, email])
+  @@index([tenantId, phone])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("customers")
+}
+
+// ------------------------------------------------------------
+// Task
+// ------------------------------------------------------------
+
+model Task {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  customerId String   @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  jobTypeTemplateId String?          @db.Uuid
+  jobTypeTemplate   JobTypeTemplate? @relation(fields: [jobTypeTemplateId], references: [id], onDelete: SetNull)
+
+  title       String
+  description String?
+  status      TaskStatus @default(NEW)
+  priority    Int        @default(2)
+  source      TaskSource
+
+  customFields Json?
+
+  locationLat Float?
+  locationLng Float?
+
+  assignedToUserId String? @db.Uuid
+  assignedTo       User?   @relation("AssignedTasks", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+
+  checklist Json?
+
+  sourceEmailId String?
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+  closedAt  DateTime? @db.Timestamptz(3)
+
+  invoiceLineItems InvoiceLineItem[]
+  stockMovements   StockMovement[]
+
+  // ה-constraint שהופך את ה-dedup של Gmail מ-race ל-ערובה (C14).
+  @@unique([tenantId, sourceEmailId])
+  @@index([tenantId, status, createdAt(sort: Desc)])
+  @@index([tenantId, assignedToUserId, status])
+  // בדיוק צורת ה-query של הפקת חשבונית לתקופה (I15).
+  @@index([tenantId, customerId, status, closedAt])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([jobTypeTemplateId])
+  @@map("tasks")
+}
+
+// ------------------------------------------------------------
+// Inventory
+// ------------------------------------------------------------
+
+model InventoryItem {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  sku               String
+  name              String
+  quantity          Int      @default(0)
+  lowStockThreshold Int      @default(5)
+  unitPrice         Decimal? @db.Decimal(12, 2)
+  category          String?
+  isActive          Boolean  @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  movements StockMovement[]
+
+  @@unique([tenantId, sku])
+  // תומך ב-"הצג פריטים בחוסר" בלי לטעון את כל הטבלה ל-JS (I18).
+  // התנאי `quantity <= lowStockThreshold` נבדק ב-SQL, ראו
+  // inventory.service.ts.
+  @@index([tenantId, quantity])
+  @@index([tenantId, category])
+  @@map("inventory_items")
+}
+
+// כל שינוי כמות מייצר שורה כאן, באותה טרנזקציה שמשנה את הכמות.
+// זה מה שהופך "המלאי לא נכון" משאלה בלתי פתירה לשאילתה.
+model StockMovement {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  inventoryItemId String        @db.Uuid
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  // כמות בסימן: שלילי = ניכוי, חיובי = הוספה.
+  delta         Int
+  quantityAfter Int
+  reason        StockMovementReason
+  note          String?
+
+  taskId String? @db.Uuid
+  task   Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  actorUserId String? @db.Uuid
+  actor       User?   @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  // אידמפוטנטיות: ניכוי אחד לכל (משימה, פריט). סגירה כפולה של
+  // משימה נחסמת ע"י ה-DB, לא ע"י תקווה (C9).
+  @@unique([taskId, inventoryItemId, reason])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([inventoryItemId, createdAt(sort: Desc)])
+  @@index([actorUserId])
+  @@map("stock_movements")
+}
+
+// ------------------------------------------------------------
+// Price List
+// ------------------------------------------------------------
+
+model PriceListItem {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  code        String
+  description String
+  price       Decimal @db.Decimal(12, 2)
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@map("price_list_items")
+}
+
+// ------------------------------------------------------------
+// Invoicing
+// ------------------------------------------------------------
+
+model Invoice {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  customerId String   @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  // מספר חשבונית רץ לכל טננט — דרישה חשבונאית, ולא ניתן להפיק
+  // מ-UUID. מוקצה ב-SQL עם נעילה, ראו invoicing.service.ts.
+  invoiceNumber Int
+
+  periodStart DateTime      @db.Timestamptz(3)
+  periodEnd   DateTime      @db.Timestamptz(3)
+  totalAmount Decimal       @db.Decimal(12, 2)
+  status      InvoiceStatus @default(DRAFT)
+
+  pdfDriveFileId String?
+
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+  finalizedAt DateTime? @db.Timestamptz(3)
+
+  lineItems InvoiceLineItem[]
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([tenantId, customerId, createdAt(sort: Desc)])
+  @@index([tenantId, status, createdAt(sort: Desc)])
+  @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id        String  @id @default(uuid()) @db.Uuid
+  invoiceId String  @db.Uuid
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  taskId String? @db.Uuid
+  task   Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  priceCode   String
+  description String
+  amount      Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  // חיוב כפול על אותה שורת עבודה נחסם ב-DB, לא ב-read-then-write (I9).
+  @@unique([taskId, priceCode])
+  @@index([invoiceId])
+  @@index([taskId])
+  @@map("invoice_line_items")
+}
+
+// ------------------------------------------------------------
+// Integrations
+// ------------------------------------------------------------
+
+model TenantIntegration {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  provider IntegrationProvider
+  status   IntegrationStatus   @default(CONNECTED)
+
+  accessTokenEncrypted  String?
+  refreshTokenEncrypted String?
+  scopes                String[]
+
+  // גרסת מפתח ההצפנה ששימשה. בלי זה, רוטציה של
+  // INTEGRATION_ENCRYPTION_KEY הורסת כל טוקן שמור (audit M6).
+  encryptionKeyVersion Int @default(1)
+
+  // מתי פג ה-access token, כדי לרענן מראש ולא בתגובה ל-401.
+  accessTokenExpiresAt DateTime? @db.Timestamptz(3)
+  lastErrorAt          DateTime? @db.Timestamptz(3)
+  lastError            String?
+
+  // watermark ל-Gmail sync אינקרמנטלי, במקום `is:unread` שמאבד
+  // מיילים ישנים מחוץ לחלון (I25).
+  lastSyncedAt DateTime? @db.Timestamptz(3)
+  syncCursor   String?
+
+  connectedByUserId String? @db.Uuid
+  connectedBy       User?   @relation(fields: [connectedByUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([tenantId, provider])
+  @@index([provider, status])
+  @@index([connectedByUserId])
+  @@map("tenant_integrations")
+}
+
+// ------------------------------------------------------------
+// Audit / Outbox / Idempotency — התשתית שהופכת פעולות אסינכרוניות
+// לבטוחות. ראו docs/01-architecture.md.
+// ------------------------------------------------------------
+
+model AuditLog {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  userId String? @db.Uuid
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, action, createdAt(sort: Desc)])
+  @@index([userId])
+  @@map("audit_logs")
+}
+
+// Transactional outbox. אירוע נכתב לכאן *באותה טרנזקציה* שמשנה את
+// המצב העסקי, ונשלח לתור רק אחרי commit. זה מה שמונע את המצב
+// "המשימה נסגרה אבל המייל לא נשלח" — ואת ההפך.
+model OutboxEvent {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  eventName String
+  payload   Json
+
+  status        OutboxStatus @default(PENDING)
+  attempts      Int          @default(0)
+  lastError     String?
+  nextAttemptAt DateTime     @default(now()) @db.Timestamptz(3)
+
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  processedAt DateTime? @db.Timestamptz(3)
+
+  @@index([status, nextAttemptAt])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("outbox_events")
+}
+
+// מפתחות אידמפוטנטיות לפעולות HTTP שמשנות מצב. הלקוח שולח
+// Idempotency-Key, ואנחנו מחזירים את אותה תשובה לניסיון חוזר
+// במקום לבצע את הפעולה פעמיים.
+model IdempotencyKey {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  key          String
+  endpoint     String
+  requestHash  String
+  responseBody Json?
+  statusCode   Int?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  expiresAt DateTime @db.Timestamptz(3)
+
+  @@unique([tenantId, key, endpoint])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
+
+// חשבונאות טוקנים. בלי זה אין תשובה ל-"כמה עלה לנו הטננט הזה"
+// ואין אכיפת תקציב (audit C19).
+model LlmUsage {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  purpose             String
+  model               String
+  inputTokens         Int
+  outputTokens        Int
+  cacheReadTokens     Int    @default(0)
+  cacheCreationTokens Int    @default(0)
+  // עלות משוערת באגורות, לפי טבלת תמחור בקוד.
+  estimatedCostMinor  Int    @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([tenantId, purpose, createdAt(sort: Desc)])
+  @@map("llm_usage")
+}
+
+// ------------------------------------------------------------
+// Onboarding — הטבלאות היחידות ללא tenantId, ולכן ללא RLS.
+// onboarding קורה *לפני* שהטננט קיים. הבידוד כאן הוא sessionSecret
+// בלבד, ולכן יש TTL ויש נעילה אופטימית.
+// ------------------------------------------------------------
+
+model OnboardingSession {
+  id String @id @default(uuid()) @db.Uuid
+
+  // hash של הסוד, לא הסוד עצמו. דליפת DB לא נותנת גישה לסשנים.
+  sessionSecretHash String           @unique
+  status            OnboardingStatus @default(IN_PROGRESS)
+
+  companyInfo Json?
+  teamMembers Json?
+  priceCodes  Json?
+  jobTypes    Json?
+
+  conversationHistory Json @default("[]")
+
+  // נעילה אופטימית — שתי קריאות /message במקביל לא ידרסו זו את זו (M19).
+  version Int @default(0)
+
+  // מונה קריאות LLM לסשן, לתקרה קשיחה מול ניצול אנונימי (C19).
+  llmCallCount Int @default(0)
+
+  resultTenantId String? @db.Uuid
+
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+  finalizedAt DateTime? @db.Timestamptz(3)
+  // TTL — סשן נטוש לא מחזיק ח.פ ואימייל לנצח (audit I5).
+  expiresAt   DateTime  @db.Timestamptz(3)
+
+  documents OnboardingDocument[]
+
+  @@index([status, expiresAt])
+  @@map("onboarding_sessions")
+}
+
+model OnboardingDocument {
+  id        String            @id @default(uuid()) @db.Uuid
+  sessionId String            @db.Uuid
+  session   OnboardingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  docType       OnboardingDocumentType
+  originalName  String
+  sizeBytes     Int
+  extractedText String?                @db.Text
+
+  extractedLineItems Json?
+  // היה Json "כדי לתמוך ב-null" — אבל Decimal? תומך ב-null (I11).
+  totalAmount        Decimal? @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([sessionId, docType])
+  @@map("onboarding_documents")
+}

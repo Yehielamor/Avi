@@ -1,0 +1,172 @@
+# =============================================================================
+# CraftMind AI
+#
+# שינויים מהותיים מהגרסה הקודמת (docs/10-audit-findings.md):
+#   C24 — סיסמאות מגיעות מ-.env, לא קשיחות בקובץ.
+#   I30 — healthchecks אמיתיים + depends_on: service_healthy.
+#   I33 — מגבלות משאבים על כל שירות.
+#   I31 — init: true, כדי ש-SIGTERM יגיע לתהליך Node.
+# =============================================================================
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  # ---------------------------------------------------------------------------
+  # מיגרציות — רץ עד סיום, לפני שהאפליקציה עולה. זה מה שהופך פריסה
+  # נקייה לעובדת בלי צעד psql ידני (C11, C12).
+  # ---------------------------------------------------------------------------
+  migrate:
+    build:
+      context: .
+      target: runtime
+    restart: "no"
+    env_file: .env
+    environment:
+      DATABASE_URL: "postgresql://craftmind_migrator:${CRAFTMIND_MIGRATOR_PASSWORD}@postgres:5432/craftmind?schema=public"
+      DIRECT_DATABASE_URL: "postgresql://craftmind_migrator:${CRAFTMIND_MIGRATOR_PASSWORD}@postgres:5432/craftmind?schema=public"
+    command: ["npx", "prisma", "migrate", "deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    logging: *default-logging
+
+  app:
+    build:
+      context: .
+      target: runtime
+    restart: unless-stopped
+    init: true
+    env_file: .env
+    environment:
+      DATABASE_URL: "postgresql://craftmind_app:${CRAFTMIND_APP_PASSWORD}@postgres:5432/craftmind?schema=public&connection_limit=10&pool_timeout=20"
+      DIRECT_DATABASE_URL: "postgresql://craftmind_migrator:${CRAFTMIND_MIGRATOR_PASSWORD}@postgres:5432/craftmind?schema=public"
+      REDIS_URL: "redis://redis:6379"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits: { cpus: "1.5", memory: 1G }
+        reservations: { memory: 256M }
+    networks: [internal]
+    logging: *default-logging
+    # אין ports — Caddy הוא המאזין הציבורי היחיד.
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPER_PASSWORD:?POSTGRES_SUPER_PASSWORD is required}
+      POSTGRES_DB: craftmind
+      CRAFTMIND_MIGRATOR_PASSWORD: ${CRAFTMIND_MIGRATOR_PASSWORD:?required}
+      CRAFTMIND_APP_PASSWORD: ${CRAFTMIND_APP_PASSWORD:?required}
+      # scram-sha-256 במקום md5 כברירת מחדל.
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # רץ פעם אחת בלבד, באתחול ראשון של ה-volume.
+      - ./docker/postgres/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d craftmind"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    deploy:
+      resources:
+        limits: { cpus: "2", memory: 2G }
+        reservations: { memory: 512M }
+    networks: [internal]
+    logging: *default-logging
+    # פורט 5432 *לא* נחשף כברירת מחדל. לפיתוח מקומי מול הקונטיינר:
+    # docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # appendonly — תורי BullMQ לא נעלמים באתחול מחדש.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 384M }
+    networks: [internal]
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Metabase — כבוי כברירת מחדל (profile "bi"). ה-image הרשמי אינו
+  # תומך ב-ARM64; במכונת ARM השאירו כבוי.
+  # ---------------------------------------------------------------------------
+  metabase:
+    image: metabase/metabase:latest
+    profiles: ["bi"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - metabase_data:/metabase-data
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 1G }
+    networks: [internal]
+    logging: *default-logging
+
+  caddy:
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+      BASE_DOMAIN: ${BASE_DOMAIN:?BASE_DOMAIN is required}
+    depends_on:
+      app:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
+    networks: [internal]
+    logging: *default-logging
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  metabase_data:
+  caddy_data:
+  caddy_config:

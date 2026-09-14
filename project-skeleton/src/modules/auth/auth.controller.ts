@@ -2,6 +2,8 @@ import { BadRequestException, Body, Controller, Get, Post, Req } from '@nestjs/c
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 
+import { AnyRole } from '../../common/decorators/roles.decorator';
+
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthService } from './auth.service';
 import { AllowWhenPasswordChangeRequired } from './password-change.decorator';
@@ -43,6 +45,7 @@ export class AuthController {
    * ה-DB שהמשתמש עדיין פעיל — לא רק שהחתימה תקינה. משתמש שהושבת
    * אחרי הנפקת הטוקן נחסם כאן.
    */
+  @AnyRole()
   @Get('me')
   me(@Req() req: Request) {
     const user = req.user!; // ה-guard הגלובלי כבר אימת
@@ -59,6 +62,7 @@ export class AuthController {
   /** ה-route היחיד שפתוח למשתמש עם `mustChangePassword` דולק. */
   @AllowWhenPasswordChangeRequired()
   @Throttle(AUTH_THROTTLE)
+  @AnyRole()
   @Post('change-password')
   changePassword(@Req() req: Request, @Body() body: ChangePasswordDto) {
     const user = req.user!; // JwtAuthGuard הגלובלי כבר אימת

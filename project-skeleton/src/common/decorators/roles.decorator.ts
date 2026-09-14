@@ -1,16 +1,26 @@
 import { SetMetadata } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 
-/**
- * מסמן אילו תפקידים רשאים להגיע ל-route.
- *
- * `UserRole` היה enum דקורטיבי: הוא נחתם ל-JWT ומעולם לא נקרא, כך
- * שטכנאי `FIELD` יכול היה לנתק את חשבון Google של העסק, לקרוא את כל
- * הלקוחות ולהפיק חשבוניות. ראו docs/20-backend-conventions.md#3.
- *
- * הטיפוס הוא `UserRole` מ-Prisma ולא מחרוזת — הוספת תפקיד לסכימה
- * בלי לעדכן את הדקורטורים נכשלת בקומפילציה, לא בזמן ריצה.
- */
 export const ROLES_KEY = 'roles';
 
-export const Roles = (...roles: [UserRole, ...UserRole[]]) => SetMetadata(ROLES_KEY, roles);
+/**
+ * מגביל route לתפקידים מסוימים.
+ *
+ * מוטפס מול ה-enum של Prisma ולא מול מחרוזות: `@Roles('owner')` לא
+ * יתקמפל, ולכן אי אפשר להגביל route לתפקיד שאינו קיים ובכך לנעול
+ * אותו בשקט לכולם.
+ */
+export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
+
+/**
+ * מסמן route כפתוח לכל משתמש *מאומת*, ללא קשר לתפקיד.
+ *
+ * הסימון הזה נראה מיותר — ואפשר היה פשוט לא לכתוב `@Roles`. הוא קיים
+ * בדיוק כדי שזה לא יהיה אפשרי: `RolesGuard` דוחה route ללא סימון
+ * כלל. ההבחנה בין "פתוח לכולם במכוון" לבין "מישהו שכח" חייבת להיות
+ * גלויה בקוד, לא משתמעת מהיעדר שורה.
+ *
+ * זה אותו עיקרון כמו `@Public()`: שכחה מייצרת 403, לא חור.
+ */
+export const ANY_ROLE_KEY = 'anyRole';
+export const AnyRole = () => SetMetadata(ANY_ROLE_KEY, true);

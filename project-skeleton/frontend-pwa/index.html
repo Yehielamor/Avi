@@ -1,0 +1,35 @@
+<!doctype html>
+<!--
+  dir="rtl" ו-lang="he" על ה-<html> הם הבסיס לכל מערכת העיצוב.
+  כל ה-layout משתמש ב-logical properties, כך שהכיוון מטופל במקום אחד.
+-->
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      viewport-fit=cover + env(safe-area-inset-*) ב-CSS: במצב standalone
+      אין דפדפן סביב הדף, והתוכן היה נכנס מתחת ל-notch ולפס הבית.
+      maximum-scale לא מוגדר בכוונה — נעילת זום היא כשל נגישות.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#0b0f14" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="עבודות" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <title>עבודות — CraftMind</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

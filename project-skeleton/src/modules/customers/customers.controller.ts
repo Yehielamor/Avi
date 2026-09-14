@@ -8,8 +8,11 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { NotFoundException } from '@nestjs/common';
 import type { Request } from 'express';
+
+import { AnyRole, Roles } from '../../common/decorators/roles.decorator';
 
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -20,16 +23,19 @@ import { SearchCustomersQueryDto } from './dto/search-customers-query.dto';
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
+  @AnyRole()
   @Get()
   findAll(@Req() req: Request, @Query() query: ListCustomersQueryDto) {
     return this.customersService.findAll(req.tenantId!, query);
   }
 
+  @AnyRole()
   @Get('search')
   search(@Req() req: Request, @Query() query: SearchCustomersQueryDto) {
     return this.customersService.search(req.tenantId!, query.q, query.take);
   }
 
+  @AnyRole()
   @Get(':id')
   async findOne(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string) {
     const customer = await this.customersService.findOne(req.tenantId!, id);
@@ -39,6 +45,7 @@ export class CustomersController {
     return customer;
   }
 
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
   @Post()
   create(@Req() req: Request, @Body() body: CreateCustomerDto) {
     return this.customersService.create(req.tenantId!, body, req.user?.id);

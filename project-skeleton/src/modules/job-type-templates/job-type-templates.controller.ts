@@ -8,7 +8,10 @@ import {
   Post,
   Req,
 } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import type { Request } from 'express';
+
+import { AnyRole, Roles } from '../../common/decorators/roles.decorator';
 
 import { JobTypeTemplatesService } from './job-type-templates.service';
 import { CreateJobTypeTemplateDto } from './dto/create-job-type-template.dto';
@@ -17,6 +20,7 @@ import { CreateJobTypeTemplateDto } from './dto/create-job-type-template.dto';
 export class JobTypeTemplatesController {
   constructor(private readonly service: JobTypeTemplatesService) {}
 
+  @AnyRole()
   @Get()
   findAll(@Req() req: Request) {
     return this.service.findAllActive(req.tenantId!);
@@ -29,6 +33,7 @@ export class JobTypeTemplatesController {
     return template;
   }
 
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
   @Post()
   create(@Req() req: Request, @Body() body: CreateJobTypeTemplateDto) {
     return this.service.create(req.tenantId!, body, req.user?.id);

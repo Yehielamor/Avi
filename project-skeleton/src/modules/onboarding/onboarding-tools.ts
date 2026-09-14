@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import type { LlmToolDefinition } from '../../llm/llm.types';
 
 // ============================================================
 // הגדרות ה-tools שה-LLM יכול לקרוא במהלך שיחת ה-onboarding.
@@ -7,12 +7,12 @@ import Anthropic from '@anthropic-ai/sdk';
 // הוא שמעדכן את ה-DB בפועל. זה מפריד בין "הבנה" (LLM) ל"ביצוע" (קוד).
 // ============================================================
 
-export const ONBOARDING_TOOLS: Anthropic.Tool[] = [
+export const ONBOARDING_TOOLS: LlmToolDefinition[] = [
   {
     name: 'record_company_info',
     description:
       'שמור את פרטי החברה הבסיסיים ברגע שנאספו כולם בשיחה (שם, ח.פ, סוג העסק, מייל ליצירת קשר). אפשר לקרוא שוב אם פרט מתעדכן.',
-    input_schema: {
+    parameters: {
       type: 'object',
       properties: {
         legalName: { type: 'string', description: 'שם החברה הרשמי' },
@@ -30,7 +30,7 @@ export const ONBOARDING_TOOLS: Anthropic.Tool[] = [
   {
     name: 'add_team_member',
     description: 'הוסף איש צוות אחד שהוזכר בשיחה. קרא פעם אחת לכל איש צוות (לא כל השיחה מחדש).',
-    input_schema: {
+    parameters: {
       type: 'object',
       properties: {
         name: { type: 'string' },
@@ -48,7 +48,7 @@ export const ONBOARDING_TOOLS: Anthropic.Tool[] = [
     name: 'add_price_code',
     description:
       'הוסף קוד מחירון/"קוד סגירה" אחד שהוזכר בשיחה - למשל פעולה שהעסק מתמחר בנפרד. קרא פעם אחת לכל קוד.',
-    input_schema: {
+    parameters: {
       type: 'object',
       properties: {
         code: { type: 'string', description: 'קוד קצר ללא רווחים, למשל AC-FILTER-REPLACE' },
@@ -62,7 +62,7 @@ export const ONBOARDING_TOOLS: Anthropic.Tool[] = [
     name: 'add_job_type',
     description:
       'הוסף סוג עבודה (תבנית) אחד שהוגדר בשיחה - למשל "התקנת מזגן" או "ארון הזמנה". קרא פעם אחת לכל סוג עבודה, אחרי שדנתם באילו שדות/פעולות הוא כולל.',
-    input_schema: {
+    parameters: {
       type: 'object',
       properties: {
         name: { type: 'string' },
@@ -102,7 +102,7 @@ export const ONBOARDING_TOOLS: Anthropic.Tool[] = [
     name: 'ready_to_finalize',
     description:
       'קרא לפונקציה הזו רק אחרי שנאספו: פרטי חברה מלאים, לפחות איש צוות אחד (בעל העסק לפחות), ולפחות סוג עבודה אחד עם checklist. אל תקרא לזה מוקדם מדי.',
-    input_schema: {
+    parameters: {
       type: 'object',
       properties: {
         summary: {

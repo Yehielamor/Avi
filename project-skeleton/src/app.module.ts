@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { validateEnv, type AppEnv } from './config/env.schema';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
+import { LlmModule } from './llm/llm.module';
 import { QueueModule } from './queue/queue.module';
 import { WorkerModule } from './queue/worker.module';
 import { TenantContextMiddleware } from './common/tenant-context.middleware';
@@ -97,6 +98,7 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
 
     DatabaseModule,
     HealthModule,
+    LlmModule,
     QueueModule,
 
     TenantsModule,

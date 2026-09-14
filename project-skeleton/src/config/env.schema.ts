@@ -28,6 +28,10 @@ const secret = (min: number, label: string) =>
       message: `${label} still looks like a placeholder — generate a real value`,
     });
 
+/** placeholder נראה מוגדר ונכשל רק בקריאה הראשונה. */
+const isRealSecret = (v: string): boolean =>
+  v.trim() !== '' && !/placeholder|replace_with|your[-_]|changeme/i.test(v);
+
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -71,10 +75,17 @@ export const envSchema = z
     GOOGLE_CLIENT_SECRET: z.string().default(''),
     GOOGLE_REDIRECT_URI: z.string().default(''),
 
-    // --- Anthropic ---
+    // --- LLM ---
+    // 'auto' בוחר את הספק שמוגדר בפועל. ראו src/llm/llm.module.ts.
+    LLM_PROVIDER: z.enum(['auto', 'anthropic', 'gemini']).default('auto'),
+
     ANTHROPIC_API_KEY: z.string().default(''),
     ANTHROPIC_EXTRACTION_MODEL: z.string().default('claude-haiku-4-5-20251001'),
     ANTHROPIC_ONBOARDING_MODEL: z.string().default('claude-sonnet-5'),
+
+    // Gemini — יש לו מכסה חינמית, ולכן הוא חלופה טובה לפיתוח.
+    GEMINI_API_KEY: z.string().default(''),
+    GEMINI_MODEL: z.string().default('gemini-3.7-flash'),
 
     LLM_DEFAULT_MONTHLY_BUDGET_MINOR: z.coerce.number().int().nonnegative().default(50_000),
     LLM_MAX_INPUT_CHARS: z.coerce.number().int().positive().default(40_000),
@@ -93,6 +104,20 @@ export const envSchema = z
     }
 
     if (env.NODE_ENV === 'production') {
+      // ספק LLM אחד לפחות. הדרישה היא על *יכולת*, לא על ספק מסוים —
+      // אחרת מעבר ל-Gemini היה נחסם על ידי בדיקה של Anthropic.
+      const hasLlm =
+        (env.LLM_PROVIDER !== 'gemini' && isRealSecret(env.ANTHROPIC_API_KEY)) ||
+        (env.LLM_PROVIDER !== 'anthropic' && isRealSecret(env.GEMINI_API_KEY));
+      if (!hasLlm) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['LLM_PROVIDER'],
+          message:
+            'No usable LLM key. Set ANTHROPIC_API_KEY or GEMINI_API_KEY (and LLM_PROVIDER if you want to pin one).',
+        });
+      }
+
       if (env.CORS_ORIGINS.length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -104,7 +129,6 @@ export const envSchema = z
         GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID,
         GOOGLE_CLIENT_SECRET: env.GOOGLE_CLIENT_SECRET,
         GOOGLE_REDIRECT_URI: env.GOOGLE_REDIRECT_URI,
-        ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY,
       })) {
         // placeholder נחשב חסר. הוא נראה מוגדר ונכשל רק בקריאה
         // הראשונה, עמוק בתוך זרימת משתמש.

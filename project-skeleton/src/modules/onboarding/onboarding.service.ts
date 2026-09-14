@@ -6,14 +6,15 @@ import {
   HttpStatus,
   Injectable,
   Logger,
+  Inject,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Anthropic from '@anthropic-ai/sdk';
 import type { OnboardingSession, Prisma } from '@prisma/client';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
-import { assertLlmConfigured } from '../../common/llm-availability';
+import { LLM_PROVIDER, type LlmMessage, type LlmProvider, type LlmToolResult } from '../../llm/llm.types';
 import { PrismaService } from '../../database/prisma.service';
 import type { AppEnv } from '../../config/env.schema';
 import { ONBOARDING_TOOLS } from './onboarding-tools';
@@ -59,20 +60,15 @@ export interface ValidatedSession extends OnboardingSession {
 @Injectable()
 export class OnboardingService {
   private readonly logger = new Logger(OnboardingService.name);
-  private readonly client: Anthropic;
-  private readonly apiKey: string;
-  private readonly model: string;
   private readonly ttlHours: number;
   private readonly maxLlmCalls: number;
   private readonly maxInputChars: number;
 
   constructor(
+    @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<AppEnv, true>,
   ) {
-    this.apiKey = this.config.get('ANTHROPIC_API_KEY', { infer: true });
-    this.client = new Anthropic({ apiKey: this.apiKey });
-    this.model = this.config.get('ANTHROPIC_ONBOARDING_MODEL', { infer: true });
     this.ttlHours = this.config.get('ONBOARDING_SESSION_TTL_HOURS', { infer: true });
     this.maxLlmCalls = this.config.get('ONBOARDING_MAX_LLM_CALLS_PER_SESSION', { infer: true });
     this.maxInputChars = this.config.get('LLM_MAX_INPUT_CHARS', { infer: true });
@@ -90,7 +86,11 @@ export class OnboardingService {
   async start(): Promise<{ sessionId: string; sessionSecret: string; message: string }> {
     // נבדק כאן ולא בתור הראשון: אין טעם לפתוח סשן, לשמור אותו ב-DB
     // ולהחזיר סוד, אם ההודעה הראשונה ממילא תיכשל.
-    assertLlmConfigured(this.apiKey, 'Onboarding chat');
+    if (!this.llm.isConfigured) {
+      throw new ServiceUnavailableException(
+        'Onboarding chat requires an LLM provider and none is configured on this server.',
+      );
+    }
 
     const sessionSecret = randomBytes(SESSION_SECRET_BYTES).toString('hex');
     const greeting =
@@ -205,63 +205,89 @@ export class OnboardingService {
     // על חשבון הפעלת המערכת. ראו docs/20-backend-conventions.md#9.
     const trimmedMessage = userMessage.slice(0, this.maxInputChars);
 
-    // ההיסטוריה נכתבת רק על ידינו (אין נתיב שבו הלקוח מספק אותה),
-    // ולכן די בבדיקה מבנית שזה מערך.
-    const history = Array.isArray(session.conversationHistory)
-      ? (session.conversationHistory as unknown as Anthropic.MessageParam[])
+    // ההיסטוריה נשמרת כהודעות טקסט נייטרליות, לא בפורמט של ספק.
+    // היא נכתבת רק על ידינו, ולכן די בסינון מבני שמוודא שהתפקיד
+    // והתוכן תקינים — שורה פגומה מגרסה ישנה מדולגת ולא מפילה תור.
+    const history: LlmMessage[] = Array.isArray(session.conversationHistory)
+      ? (session.conversationHistory as unknown[]).filter(isLlmMessage)
       : [];
 
-    let messages: Anthropic.MessageParam[] = [
-      ...history,
-      { role: 'user', content: trimmedMessage },
-    ];
+    let messages: LlmMessage[] = [];
 
     try {
+      // ההיסטוריה נשמרת כהודעות טקסט פשוטות ולא בפורמט של ספק מסוים.
+      // קודם היא נשמרה כבלוקי תוכן של Anthropic, מה שהיה כובל את
+      // ה-DB לספק — והופך החלפה לצורך מיגרציית נתונים.
+      const llmMessages: LlmMessage[] = [...history, { role: 'user', content: trimmedMessage }];
+
+      let response = await this.llm.complete({
+        system: this.buildSystemPrompt(docCounts),
+        messages: llmMessages,
+        tools: ONBOARDING_TOOLS,
+        maxTokens: 2048,
+        purpose: 'onboarding.chat',
+      });
+      callsUsed += 1;
+
       for (let iteration = 0; iteration < budget; iteration++) {
-        const response = await this.client.messages.create({
-          model: this.model,
-          max_tokens: 2048,
-          system: this.buildSystemPrompt(docCounts),
-          tools: ONBOARDING_TOOLS,
-          messages,
-        });
-        callsUsed += 1;
-
-        messages = [...messages, { role: 'assistant', content: response.content }];
-
-        const toolUses = response.content.filter((block) => block.type === 'tool_use');
-        if (toolUses.length === 0) {
-          const textBlock = response.content.find((block) => block.type === 'text');
-          finalText = textBlock && textBlock.type === 'text' ? textBlock.text : finalText;
+        if (response.toolCalls.length === 0) {
+          if (response.text) finalText = response.text;
           break;
         }
 
-        const toolResults: Anthropic.ContentBlockParam[] = [];
-        for (const toolUse of toolUses) {
-          const outcome = this.applyToolCall(toolUse.name, toolUse.input, draft);
+        const results: LlmToolResult[] = [];
+        for (const call of response.toolCalls) {
+          const outcome = this.applyToolCall(call.name, call.input, draft);
           if (outcome.ok && outcome.readyToFinalize) readyToFinalize = true;
 
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: toolUse.id,
-            // כשל אימות חוזר למודל כ-is_error כדי שיתקן בתור הבא,
-            // במקום שקלט פגום ייכתב ל-DB (כפי ש-`as unknown as X` עשה).
-            is_error: !outcome.ok,
+          results.push({
+            toolCallId: call.id,
+            name: call.name,
+            // כשל אימות חוזר למודל כשגיאה כדי שיתקן בתור הבא, במקום
+            // שקלט פגום ייכתב ל-DB (כפי ש-`as unknown as X` עשה).
+            isError: !outcome.ok,
             content: outcome.ok ? JSON.stringify({ ok: true }) : outcome.error,
           });
         }
 
-        messages = [...messages, { role: 'user', content: toolResults }];
-
-        if (iteration === budget - 1) {
-          finalText = 'קלטתי את הפרטים - נמשיך משם. יש עוד משהו שתרצה להוסיף?';
+        if (iteration === budget - 1 || callsUsed >= budget) {
+          finalText = response.text || 'קלטתי את הפרטים - נמשיך משם. יש עוד משהו שתרצה להוסיף?';
+          break;
         }
+
+        const previous = response;
+        response = await this.llm.continueWithToolResults(
+          {
+            system: this.buildSystemPrompt(docCounts),
+            messages: llmMessages,
+            tools: ONBOARDING_TOOLS,
+            maxTokens: 2048,
+            purpose: 'onboarding.chat',
+          },
+          previous,
+          results,
+        );
+        callsUsed += 1;
       }
+
+      // ההיסטוריה שנשמרת היא של השיחה, לא של הפרוטוקול: הודעת
+      // המשתמש והתשובה הסופית. קריאות הכלים כבר יושמו על ה-draft.
+      messages = [
+        ...history,
+        { role: 'user', content: trimmedMessage },
+        { role: 'assistant', content: finalText },
+      ];
     } catch (err: unknown) {
       // מחזירים את התקציב שלא נוצל, ומשחררים את הנעילה כדי שהמשתמש
       // יוכל לנסות שוב. `catch` ריק אסור — השגיאה נרשמת ומוחזרת.
       await this.releaseReservation(sessionId, reservedVersion, budget - callsUsed);
       this.logger.error({ err, sessionId }, 'Onboarding LLM turn failed');
+
+      // הודעת הספק מועברת כשהיא מובנת — "מכסה נגמרה" ו"עומס רגעי"
+      // דורשים פעולות שונות לגמרי מהמפעיל, ובליעתן לתוך הודעה גנרית
+      // אחת הופכת דיאגנוזה של דקה לחיפוש בלוגים.
+      if (err instanceof ServiceUnavailableException) throw err;
+
       throw new HttpException(
         'The onboarding assistant is temporarily unavailable - please retry',
         HttpStatus.BAD_GATEWAY,
@@ -413,4 +439,14 @@ export class OnboardingService {
 
 function formatIssues(error: { issues: Array<{ path: PropertyKey[]; message: string }> }): string {
   return error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ');
+}
+
+/**
+ * ההיסטוריה ב-DB היא JSON. שורה שנכתבה בגרסה קודמת (בפורמט של
+ * Anthropic) לא תעבור כאן — היא מדולגת במקום להפיל את התור.
+ */
+function isLlmMessage(value: unknown): value is LlmMessage {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as { role?: unknown; content?: unknown };
+  return (v.role === 'user' || v.role === 'assistant') && typeof v.content === 'string';
 }

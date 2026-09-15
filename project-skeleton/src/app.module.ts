@@ -1,6 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
@@ -13,6 +13,7 @@ import { LlmModule } from './llm/llm.module';
 import { QueueModule } from './queue/queue.module';
 import { WorkerModule } from './queue/worker.module';
 import { TenantContextMiddleware } from './common/tenant-context.middleware';
+import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { RolesGuard } from './common/guards/roles.guard';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 
@@ -129,6 +130,10 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+
+    // רץ אחרי ה-guards: אין טעם לתפוס מפתח אידמפוטנטיות לבקשה
+    // שתידחה ממילא ב-401 או ב-403.
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
   ],
 })
 export class AppModule implements NestModule {

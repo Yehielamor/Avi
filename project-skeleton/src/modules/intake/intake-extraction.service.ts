@@ -1,8 +1,8 @@
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 
+import { LLM_PROVIDER, type LlmProvider } from '../../llm/llm.types';
 import { PrismaService } from '../../database/prisma.service';
 
 // ============================================================
@@ -30,7 +30,6 @@ import { PrismaService } from '../../database/prisma.service';
 // ============================================================
 
 /** הלקוח מוזרק כ-provider, לא נבנה בקונסטרוקטור — אחרת אין דרך לבדוק את המסלול בלי מפתח חי. */
-export const ANTHROPIC_CLIENT = Symbol('ANTHROPIC_CLIENT');
 
 const extractionResultSchema = z.object({
   matchedTemplateId: z.string().nullable(),
@@ -85,23 +84,16 @@ const SYSTEM_PROMPT = `אתה מסייע לחילוץ מידע מובנה מתו
 @Injectable()
 export class IntakeExtractionService {
   private readonly logger = new Logger(IntakeExtractionService.name);
-  private readonly client: Anthropic;
-  private readonly model: string;
   private readonly maxInputChars: number;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-    @Optional() @Inject(ANTHROPIC_CLIENT) injectedClient?: Anthropic,
+    // דרך ה-provider המשותף ולא מול ה-SDK ישירות. בניית לקוח משלו
+    // עקפה את שכבת המדידה, כך שקליטת המיילים — נקודת הקריאה בעלת
+    // הנפח הגבוה ביותר — לא נספרה כלל.
+    @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
   ) {
-    this.client =
-      injectedClient ??
-      new Anthropic({
-        apiKey: this.config.get<string>('ANTHROPIC_API_KEY') ?? '',
-        timeout: 30_000, // בלי זה, קריאה תקועה מחזיקה את כל הסנכרון
-        maxRetries: 2,
-      });
-    this.model = this.config.get<string>('ANTHROPIC_EXTRACTION_MODEL', 'claude-haiku-4-5-20251001');
     this.maxInputChars = Number(this.config.get<string>('LLM_MAX_INPUT_CHARS') ?? 40_000);
   }
 
@@ -128,19 +120,20 @@ export class IntakeExtractionService {
     try {
       // הקריאה מכוונת להיות *מחוץ* לכל טרנזקציה: הטרנזקציה של
       // `templates` נסגרה, וזו קריאת רשת שיכולה לקחת שניות.
-      const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: 1024,
+      const response = await this.llm.complete({
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userPrompt }],
+        maxTokens: 1024,
+        purpose: 'intake.extraction',
+        // מה שמאפשר לשייך את העלות לטננט ולאכוף עליו תקרה.
+        tenantId,
       });
 
-      const textBlock = response.content.find((block) => block.type === 'text');
-      if (!textBlock || textBlock.type !== 'text') {
-        this.logger.warn({ tenantId }, 'LLM response contained no text block');
+      rawText = response.text;
+      if (!rawText) {
+        this.logger.warn({ tenantId }, 'LLM response contained no text');
         return emptyResult();
       }
-      rawText = textBlock.text;
     } catch (err: unknown) {
       // כשל API לא מפיל את הסנכרון: Task גולמי לבדיקה ידנית עדיף על
       // איבוד הפנייה. נרשם עם הסיבה — לא נבלע בשקט.

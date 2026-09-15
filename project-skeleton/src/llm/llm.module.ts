@@ -4,6 +4,8 @@ import { ConfigService } from '@nestjs/config';
 import type { AppEnv } from '../config/env.schema';
 import { AnthropicProvider } from './anthropic.provider';
 import { GeminiProvider } from './gemini.provider';
+import { LlmUsageService } from './llm-usage.service';
+import { MeteredLlmProvider } from './metered-llm.provider';
 import { LLM_PROVIDER, type LlmProvider } from './llm.types';
 
 /**
@@ -21,13 +23,15 @@ import { LLM_PROVIDER, type LlmProvider } from './llm.types';
   providers: [
     AnthropicProvider,
     GeminiProvider,
+    LlmUsageService,
     {
       provide: LLM_PROVIDER,
-      inject: [ConfigService, AnthropicProvider, GeminiProvider],
+      inject: [ConfigService, AnthropicProvider, GeminiProvider, LlmUsageService],
       useFactory: (
         config: ConfigService<AppEnv, true>,
         anthropic: AnthropicProvider,
         gemini: GeminiProvider,
+        usage: LlmUsageService,
       ): LlmProvider => {
         const logger = new Logger('LlmModule');
         const preferred = config.get('LLM_PROVIDER', { infer: true });
@@ -51,10 +55,12 @@ import { LLM_PROVIDER, type LlmProvider } from './llm.types';
           logger.log(`LLM provider: ${chosen.name} (${chosen.model})`);
         }
 
-        return chosen;
+        // כל קריאה יוצאת דרך העטיפה המודדת. זה מה שמונע את המצב
+        // שבו טבלת השימוש נשארת ריקה כי מישהו שכח לרשום.
+        return new MeteredLlmProvider(chosen, usage);
       },
     },
   ],
-  exports: [LLM_PROVIDER],
+  exports: [LLM_PROVIDER, LlmUsageService],
 })
 export class LlmModule {}

@@ -1,10 +1,17 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Anthropic from '@anthropic-ai/sdk';
 import { Prisma, type OnboardingDocumentType } from '@prisma/client';
 import { z } from 'zod';
 
-import { assertLlmConfigured } from '../../common/llm-availability';
+import { LLM_PROVIDER, type LlmProvider } from '../../llm/llm.types';
 import { PrismaService } from '../../database/prisma.service';
 import type { AppEnv } from '../../config/env.schema';
 import { extractTextFromPdf, PdfParseTimeoutError } from './pdf-text.util';
@@ -52,19 +59,14 @@ const SYSTEM_PROMPT = `אתה מסייע לחלץ שורות פריטים ומח
 @Injectable()
 export class DocumentLearningService {
   private readonly logger = new Logger(DocumentLearningService.name);
-  private readonly client: Anthropic;
-  private readonly apiKey: string;
-  private readonly model: string;
   private readonly maxInputChars: number;
   private readonly maxLlmCalls: number;
 
   constructor(
+    @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<AppEnv, true>,
   ) {
-    this.apiKey = this.config.get('ANTHROPIC_API_KEY', { infer: true });
-    this.client = new Anthropic({ apiKey: this.apiKey });
-    this.model = this.config.get('ANTHROPIC_EXTRACTION_MODEL', { infer: true });
     this.maxInputChars = this.config.get('LLM_MAX_INPUT_CHARS', { infer: true });
     this.maxLlmCalls = this.config.get('ONBOARDING_MAX_LLM_CALLS_PER_SESSION', { infer: true });
   }
@@ -74,7 +76,11 @@ export class DocumentLearningService {
     docType: OnboardingDocumentType,
     file: { originalname: string; buffer: Buffer; kind: UploadKind; sizeBytes: number },
   ) {
-    assertLlmConfigured(this.apiKey, 'Document learning');
+    if (!this.llm.isConfigured) {
+      throw new ServiceUnavailableException(
+        'Document learning requires an LLM provider and none is configured on this server.',
+      );
+    }
     const existing = await this.prisma.untenanted.onboardingDocument.count({
       where: { sessionId, docType },
     });
@@ -135,21 +141,22 @@ export class DocumentLearningService {
     }
 
     try {
-      const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: 2048,
+      const response = await this.llm.complete({
         system: SYSTEM_PROMPT,
         messages: [
           { role: 'user', content: `תוכן המסמך:\n\n${text.slice(0, this.maxInputChars)}` },
         ],
+        maxTokens: 2048,
+        purpose: 'onboarding.document_learning',
+        // אין tenantId: המסמך מנותח לפני שהטננט קיים. השליטה כאן
+        // היא תקרת הקריאות לסשן, לא תקציב חודשי.
       });
 
-      const textBlock = response.content.find((block) => block.type === 'text');
-      if (!textBlock || textBlock.type !== 'text') {
+      if (!response.text) {
         return { lineItems: [], totalAmount: null };
       }
 
-      const cleaned = textBlock.text
+      const cleaned = response.text
         .trim()
         .replace(/^```(?:json)?\s*/i, '')
         .replace(/```\s*$/i, '');

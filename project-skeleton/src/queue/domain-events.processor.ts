@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { z } from 'zod';
 
+import { AlertService } from '../alerting/alert.service';
 import { PrismaService } from '../database/prisma.service';
 import { CommsService } from '../modules/comms/comms.service';
 import { InventoryService } from '../modules/inventory/inventory.service';
@@ -38,6 +39,7 @@ export class DomainEventsProcessor extends WorkerHost {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly alerts: AlertService,
     private readonly scheduling: SchedulingService,
     private readonly inventory: InventoryService,
     private readonly invoicing: InvoicingService,
@@ -163,10 +165,15 @@ export class DomainEventsProcessor extends WorkerHost {
       )`;
 
     if (exhausted) {
-      this.logger.error(
-        { outboxEventId, attempts, err },
-        'Outbox event is DEAD — a business action did not happen and needs manual intervention',
-      );
+      // DEAD אינו "שגיאה שנרשמה". זו פעולה עסקית שלא התרחשה ולא
+      // תתרחש: מלאי שלא נוכה, חשבונית שלא נוצרה, לקוח שלא עודכן.
+      // היא דורשת אדם, ולכן היא יוצאת מהלוג החוצה.
+      await this.alerts.send({
+        severity: 'critical',
+        event: 'outbox.dead',
+        summary: `Outbox event permanently failed after ${attempts} attempts — a business action did not happen`,
+        context: { outboxEventId, attempts, error: message.slice(0, 300) },
+      });
     }
   }
 }

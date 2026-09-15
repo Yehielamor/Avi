@@ -57,6 +57,12 @@ export const envSchema = z
 
     REDIS_URL: z.string().url(),
 
+    /**
+     * יעד להתראות תפעוליות. Slack/Discord או כל endpoint שמקבל POST
+     * של JSON. ריק = ההתראות נרשמות ברמת error בלבד.
+     */
+    ALERT_WEBHOOK_URL: z.string().default(''),
+
     // --- Secrets ---
     JWT_SECRET: secret(32, 'JWT_SECRET'),
     JWT_EXPIRES_IN: z.string().default('12h'),

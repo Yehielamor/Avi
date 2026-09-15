@@ -37,16 +37,33 @@ export function priceFor(model: string): ModelPrice {
   return PRICES[model] ?? UNKNOWN;
 }
 
+/**
+ * מכפילי מטמון.
+ *
+ * קריאה ממטמון מחויבת בשבריר ממחיר קלט; כתיבה אליו מחויבת מעט
+ * מעל — פעם אחת. אלה היחסים שהספקים מפרסמים, ולכן הם מכפילים
+ * ולא שורות מחיר נפרדות לכל מודל.
+ */
+const CACHE_READ_MULTIPLIER = 0.1;
+const CACHE_WRITE_MULTIPLIER = 1.25;
+
 /** עלות מוערכת באגורות, מעוגלת כלפי מעלה — עדיף להעריך ביתר. */
 export function estimateCostMinor(
   model: string,
-  usage: { inputTokens: number; outputTokens: number },
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens?: number;
+    cacheCreationTokens?: number;
+  },
 ): number {
   const p = priceFor(model);
-  return Math.ceil(
-    (usage.inputTokens * p.inputMinorPerMillion + usage.outputTokens * p.outputMinorPerMillion) /
-      1_000_000,
-  );
+  const inputMinor =
+    usage.inputTokens * p.inputMinorPerMillion +
+    (usage.cacheReadTokens ?? 0) * p.inputMinorPerMillion * CACHE_READ_MULTIPLIER +
+    (usage.cacheCreationTokens ?? 0) * p.inputMinorPerMillion * CACHE_WRITE_MULTIPLIER;
+
+  return Math.ceil((inputMinor + usage.outputTokens * p.outputMinorPerMillion) / 1_000_000);
 }
 
 export const isModelPriced = (model: string): boolean => model in PRICES;

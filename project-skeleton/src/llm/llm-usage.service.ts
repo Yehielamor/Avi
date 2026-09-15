@@ -81,6 +81,8 @@ export class LlmUsageService {
             model,
             inputTokens: usage.inputTokens,
             outputTokens: usage.outputTokens,
+            cacheReadTokens: usage.cacheReadTokens ?? 0,
+            cacheCreationTokens: usage.cacheCreationTokens ?? 0,
             estimatedCostMinor: estimateCostMinor(model, usage),
           },
         }),

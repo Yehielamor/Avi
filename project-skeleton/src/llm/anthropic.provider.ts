@@ -87,13 +87,31 @@ export class AnthropicProvider implements LlmProvider {
         model: this.model,
         max_tokens: request.maxTokens ?? 2048,
         temperature: request.temperature ?? 0.3,
-        ...(request.system ? { system: request.system } : {}),
+        // ה-system prompt וההגדרות של הכלים זהים בכל קריאה בשיחה,
+        // והם ~1,400 טוקנים. בלי caching הם נשלחים ומחויבים מחדש
+        // בכל סבב tool-use — וסבב אחד בשיחת onboarding יכול להיות
+        // חמש קריאות.
+        //
+        // `cache_control` על האיבר האחרון מסמן את כל מה שלפניו
+        // כקידומת הניתנת לשמירה. קריאה ממטמון מחויבת בשבריר
+        // ממחיר קלט רגיל.
+        ...(request.system
+          ? {
+              system: [
+                { type: 'text' as const, text: request.system, cache_control: { type: 'ephemeral' as const } },
+              ],
+            }
+          : {}),
         ...(request.tools?.length
           ? {
-              tools: request.tools.map((t) => ({
+              tools: request.tools.map((t, i) => ({
                 name: t.name,
                 description: t.description,
                 input_schema: t.parameters as Anthropic.Tool.InputSchema,
+                // רק על האחרון: נקודת עצירה אחת מכסה את כל ההגדרות.
+                ...(i === request.tools!.length - 1
+                  ? { cache_control: { type: 'ephemeral' as const } }
+                  : {}),
               })),
             }
           : {}),
@@ -119,7 +137,12 @@ export class AnthropicProvider implements LlmProvider {
               : res.stop_reason === 'end_turn'
                 ? 'end'
                 : 'other',
-        usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },
+        usage: {
+          inputTokens: res.usage.input_tokens,
+          outputTokens: res.usage.output_tokens,
+          cacheReadTokens: res.usage.cache_read_input_tokens ?? 0,
+          cacheCreationTokens: res.usage.cache_creation_input_tokens ?? 0,
+        },
         model: this.model,
       };
     } catch (err) {

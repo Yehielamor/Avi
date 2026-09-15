@@ -7,6 +7,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'node:crypto';
 
 import { validateEnv, type AppEnv } from './config/env.schema';
+import { AlertingModule } from './alerting/alerting.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { LlmModule } from './llm/llm.module';
@@ -98,6 +99,7 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
 
     EventEmitterModule.forRoot(),
 
+    AlertingModule,
     DatabaseModule,
     HealthModule,
     LlmModule,

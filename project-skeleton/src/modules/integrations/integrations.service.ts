@@ -6,6 +6,7 @@ import {
   decryptSecret,
   encryptSecretVersioned,
 } from '../../common/crypto.util';
+import { AlertService } from '../../alerting/alert.service';
 import { PrismaService } from '../../database/prisma.service';
 import { Connector } from './connector.interface';
 import { DriveConnector } from './drive.connector';
@@ -45,6 +46,7 @@ export class IntegrationsService {
   private readonly logger = new Logger(IntegrationsService.name);
 
   constructor(
+    private readonly alerts: AlertService,
     private readonly prisma: PrismaService,
     private readonly googleOAuth: GoogleOAuthService,
   ) {}
@@ -172,6 +174,16 @@ export class IntegrationsService {
       }),
     );
     this.logger.warn({ tenantId, provider, reason }, 'Integration marked EXPIRED');
+
+    // הטננט מנותק וכנראה לא יודע: הסנכרון פשוט מפסיק להביא מיילים,
+    // ומשימות חדשות לא נוצרות. כשל שקט שעולה לקוחות.
+    await this.alerts.send({
+      severity: 'warning',
+      event: 'integration.expired',
+      summary: `${provider} integration expired — email intake has stopped for this tenant`,
+      tenantId,
+      context: { provider, reason: reason.slice(0, 300) },
+    });
   }
 
   async markError(tenantId: string, provider: GoogleProvider, reason: string): Promise<void> {

@@ -1,4 +1,4 @@
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -24,6 +24,7 @@ async function bootstrap(): Promise<void> {
   });
 
   const config = app.get(ConfigService<AppEnv, true>);
+  const logger = new Logger('Bootstrap');
   const nodeEnv = config.get('NODE_ENV', { infer: true });
   const isProd = nodeEnv === 'production';
 
@@ -67,7 +68,17 @@ async function bootstrap(): Promise<void> {
       } catch {
         /* origin לא תקין — נופל ל-deny */
       }
-      return callback(new Error(`Origin not allowed: ${origin}`), false);
+
+      // `callback(null, false)` ולא `callback(new Error(...))`.
+      //
+      // זריקה כאן הופכת דחייה תקינה ל-500 — כלומר "תקלה בשרת" על
+      // מקור שפשוט אינו ברשימה. זה גם מדליף את הרשימה בעקיפין,
+      // וגם שולח דחיית CORS לניטור כאילו הייתה שגיאה.
+      //
+      // ההתנהגות הנכונה: לא לשלוח כותרת Access-Control-Allow-Origin.
+      // הדפדפן חוסם, וזה בדיוק מה ש-CORS אמור לעשות.
+      logger.warn(`Blocked cross-origin request from ${origin}`);
+      return callback(null, false);
     },
     credentials: true,
     // X-Tenant היא כותרת מותאמת, ולכן חייבת להופיע כאן במפורש —

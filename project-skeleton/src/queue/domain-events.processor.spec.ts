@@ -1,6 +1,7 @@
 import type { Job } from 'bullmq';
 
 import { DomainEventsProcessor } from './domain-events.processor';
+import type { AlertService } from '../alerting/alert.service';
 import type { PrismaService } from '../database/prisma.service';
 import type { CommsService } from '../modules/comms/comms.service';
 import type { InventoryService } from '../modules/inventory/inventory.service';
@@ -27,6 +28,7 @@ describe('DomainEventsProcessor', () => {
   let inventory: { handleTaskClosed: jest.Mock };
   let invoicing: { validateClosedTask: jest.Mock };
   let comms: { handleTaskCreated: jest.Mock; handleTaskClosed: jest.Mock };
+  let alertSend: jest.Mock;
   let processor: DomainEventsProcessor;
 
   const makeJob = (eventName: string, payload: unknown, attemptsMade = 0, attempts = 5): Job<DomainEventJob> =>
@@ -56,8 +58,12 @@ describe('DomainEventsProcessor', () => {
       handleTaskClosed: jest.fn().mockResolvedValue(undefined),
     };
 
+    alertSend = jest.fn().mockResolvedValue(undefined);
+    const alerts = { send: alertSend } as unknown as AlertService;
+
     processor = new DomainEventsProcessor(
       prisma,
+      alerts,
       scheduling as unknown as SchedulingService,
       inventory as unknown as InventoryService,
       invoicing as unknown as InvoicingService,
@@ -140,6 +146,32 @@ describe('DomainEventsProcessor', () => {
       ).rejects.toThrow();
 
       expect(executeRaw.mock.calls.flat().join('|')).toContain('DEAD');
+    });
+
+    it('raises a critical alert when an event goes DEAD', async () => {
+      // DEAD בלי התראה הוא כשל שקט: הפעולה העסקית לא התרחשה ואיש
+      // לא יודע. הרישום ללוג לבדו לא נקרא עד שמישהו מתלונן.
+      comms.handleTaskClosed.mockRejectedValue(new Error('smtp down'));
+
+      await expect(
+        processor.process(makeJob(EVENT.TASK_CLOSED, { taskId: TASK }, 4, 5)),
+      ).rejects.toThrow();
+
+      expect(alertSend).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'critical', event: 'outbox.dead' }),
+      );
+    });
+
+    it('does not alert while retries remain', async () => {
+      // התראה על כל ניסיון כושל הופכת את הערוץ לרעש, ואז מתעלמים
+      // ממנו גם כשהוא צודק.
+      comms.handleTaskClosed.mockRejectedValue(new Error('smtp down'));
+
+      await expect(
+        processor.process(makeJob(EVENT.TASK_CLOSED, { taskId: TASK }, 1, 5)),
+      ).rejects.toThrow();
+
+      expect(alertSend).not.toHaveBeenCalled();
     });
 
     it('keeps the event retryable while attempts remain', async () => {

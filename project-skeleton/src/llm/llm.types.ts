@@ -63,6 +63,13 @@ export interface LlmRequest {
 export interface LlmUsageInfo {
   inputTokens: number;
   outputTokens: number;
+  /**
+   * טוקנים שנקראו ממטמון. מחויבים בשבריר ממחיר קלט רגיל, ולכן
+   * הפרדתם היא ההבדל בין לדעת כמה ה-caching חוסך לבין לנחש.
+   */
+  cacheReadTokens?: number;
+  /** טוקנים שנכתבו למטמון. מחויבים מעט מעל קלט רגיל, פעם אחת. */
+  cacheCreationTokens?: number;
 }
 
 export interface LlmResponse {

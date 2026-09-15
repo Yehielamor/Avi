@@ -11,6 +11,7 @@ import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import type { AppEnv } from './config/env.schema';
+import { SESSION_SECRET_HEADER } from './modules/onboarding/dto/onboarding.dto';
 
 /**
  * ה-bootstrap הקודם היה ארבע שורות: create + listen. ללא ValidationPipe,
@@ -84,8 +85,19 @@ async function bootstrap(): Promise<void> {
     // X-Tenant היא כותרת מותאמת, ולכן חייבת להופיע כאן במפורש —
     // אחרת ה-preflight נכשל והדפדפן חוסם את הבקשה עוד לפני שהיא
     // מגיעה לשרת. Idempotency-Key מאותה סיבה.
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant', 'Idempotency-Key', 'X-Request-Id'],
-    exposedHeaders: ['X-Request-Id'],
+    // X-Onboarding-Secret מגיע מ-SESSION_SECRET_HEADER — מיובא ולא
+    // משוכפל, כי כותרת שנשכחת כאן נכשלת רק בדפדפן ורק בפרודקשן.
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Tenant',
+      'Idempotency-Key',
+      'X-Request-Id',
+      SESSION_SECRET_HEADER,
+    ],
+    // Idempotent-Replay נקרא ב-frontend; בלי חשיפה מפורשת הדפדפן
+    // מסתיר אותו בתשובה חוצת-מקור והלקוח רואה תשובה רגילה.
+    exposedHeaders: ['X-Request-Id', 'Idempotent-Replay'],
     maxAge: 86_400,
   });
 

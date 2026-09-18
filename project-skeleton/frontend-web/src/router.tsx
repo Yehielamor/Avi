@@ -14,6 +14,7 @@ import { TaskDetailPage } from '@/features/tasks/task-detail-page';
 import { CustomersPage } from '@/features/customers/customers-page';
 import { CustomerDetailPage } from '@/features/customers/customer-detail-page';
 import { InventoryPage } from '@/features/inventory/inventory-page';
+import { PriceListPage } from '@/features/price-list/price-list-page';
 import { InvoicesPage } from '@/features/invoices/invoices-page';
 import { SettingsPage } from '@/features/settings/settings-page';
 import { tokenStore } from '@/lib/api';
@@ -98,6 +99,12 @@ const customerDetailRoute = createRoute({
   component: CustomerDetailPage,
 });
 
+const priceListRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/price-list',
+  component: PriceListPage,
+});
+
 const inventoryRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/inventory',
@@ -134,6 +141,7 @@ const routeTree = rootRoute.addChildren([
     customersRoute,
     customerDetailRoute,
     inventoryRoute,
+    priceListRoute,
     invoicesRoute,
     settingsRoute,
     settingsTabRoute,

@@ -30,6 +30,7 @@ import { IntakeModule } from './modules/intake/intake.module';
 import { InvoicingModule } from './modules/invoicing/invoicing.module';
 import { CommsModule } from './modules/comms/comms.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { PriceListModule } from './modules/price-list/price-list.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 
 /**
@@ -117,6 +118,7 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
     InvoicingModule,
     CommsModule,
     InventoryModule,
+    PriceListModule,
     OnboardingModule,
 
     // נטען אחרון: הוא מייבא את מודולי הדומיין שלמעלה, והעובדים

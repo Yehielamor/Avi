@@ -7,6 +7,7 @@ import {
   LogOut,
   Menu,
   Settings,
+  Tag,
   Users,
   X,
 } from 'lucide-react';
@@ -30,6 +31,7 @@ const NAV: NavItem[] = [
   { to: '/tasks', label: 'משימות', icon: ClipboardList },
   { to: '/customers', label: 'לקוחות', icon: Users },
   { to: '/inventory', label: 'מלאי', icon: Boxes, roles: ['OWNER', 'MANAGER'] },
+  { to: '/price-list', label: 'מחירון', icon: Tag, roles: ['OWNER', 'MANAGER'] },
   { to: '/invoices', label: 'חשבוניות', icon: FileText, roles: ['OWNER', 'MANAGER'] },
   { to: '/settings', label: 'הגדרות', icon: Settings, roles: ['OWNER'] },
 ];

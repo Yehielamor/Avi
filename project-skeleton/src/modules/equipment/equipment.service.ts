@@ -66,12 +66,16 @@ export class EquipmentService {
   ) {}
 
   async listForCustomer(tenantId: string, customerId: string) {
-    return this.prisma.forTenant(tenantId, (tx) =>
-      tx.equipment.findMany({
+    return this.prisma.forTenant(tenantId, async (tx) => {
+      // לקוח שאינו קיים (או של טננט אחר) הוא 404, כמו ב-POST לאותו נתיב —
+      // לא רשימה ריקה שנראית כמו "ללקוח הזה אין ציוד" (QA 18.09, F19).
+      const customer = await tx.customer.findFirst({ where: { id: customerId, tenantId }, select: { id: true } });
+      if (!customer) throw new NotFoundException('Customer not found');
+      return tx.equipment.findMany({
         where: { tenantId, customerId },
         orderBy: [{ isActive: 'desc' }, { createdAt: 'asc' }],
-      }),
-    );
+      });
+    });
   }
 
   async create(tenantId: string, customerId: string, dto: CreateEquipmentDto, actorId: string) {

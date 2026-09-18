@@ -247,6 +247,13 @@ describe('EquipmentService', () => {
     await expect(service.update(A, e.id, { location: 'מטבח' }, ACTOR)).resolves.toMatchObject({ location: 'מטבח' });
   });
 
+  it('answers 404 when listing equipment of a customer that is not in this tenant (QA F19)', async () => {
+    const custB = await privileged.customer.create({ data: { tenantId: B, name: 'ב' } });
+    await expect(service.listForCustomer(A, custB.id)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.listForCustomer(A, '00000000-0000-0000-0000-000000000000')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.listForCustomer(A, customerA)).resolves.toEqual([]);
+  });
+
   it('refuses a last-service date in the future', async () => {
     await expect(
       service.create(A, customerA, { kind: 'מזגן', lastServicedOn: dayFromToday(5) }, ACTOR),

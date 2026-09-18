@@ -19,6 +19,8 @@ import { InvoicesPage } from '@/features/invoices/invoices-page';
 import { SettingsPage } from '@/features/settings/settings-page';
 import { TaskStatusPage } from '@/features/public/task-status-page';
 import { BookingPage } from '@/features/public/booking-page';
+import { QuotePage } from '@/features/public/quote-page';
+import { QuotesPage } from '@/features/quotes/quotes-page';
 import { MaintenancePage } from '@/features/maintenance/maintenance-page';
 import { tokenStore } from '@/lib/api';
 
@@ -73,6 +75,12 @@ const publicBookingRoute = createRoute({
   component: BookingPage,
 });
 
+const publicQuoteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/c/q/$token',
+  component: QuotePage,
+});
+
 const protectedRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'protected',
@@ -124,6 +132,12 @@ const priceListRoute = createRoute({
   component: PriceListPage,
 });
 
+const quotesRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/quotes',
+  component: QuotesPage,
+});
+
 const maintenanceRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/maintenance',
@@ -161,6 +175,7 @@ const routeTree = rootRoute.addChildren([
   onboardingRoute,
   publicStatusRoute,
   publicBookingRoute,
+  publicQuoteRoute,
   protectedRoute.addChildren([
     indexRoute,
     tasksRoute,
@@ -169,6 +184,7 @@ const routeTree = rootRoute.addChildren([
     customerDetailRoute,
     inventoryRoute,
     maintenanceRoute,
+    quotesRoute,
     priceListRoute,
     invoicesRoute,
     settingsRoute,

@@ -174,7 +174,7 @@ export function QuotesPage() {
   );
 }
 
-function NewQuoteDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (q: Quote) => void }) {
+export function NewQuoteDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (q: Quote) => void }) {
   const toast = useToast();
   const [search, setSearch] = useState('');
   const term = useDeferredValue(search.trim());
@@ -232,8 +232,13 @@ function NewQuoteDialog({ onClose, onCreated }: { onClose: () => void; onCreated
               </Button>
             </div>
           ) : (
-            <Field label="לקוח" htmlFor="q-customer" required hint="לפחות שתי אותיות">
-              <Input id="q-customer" autoFocus value={search} onChange={(e) => setSearch(e.target.value)} />
+            // Field מקבל ילד אחד בדיוק (הוא משכפל אותו כדי לשים עליו את
+            // ה-aria). רשימת התוצאות יושבת לכן מחוץ לו, והעוטף שומר אותה
+            // צמודה לשדה ולא במרווח המלא של גוף הדיאלוג.
+            <div>
+              <Field label="לקוח" htmlFor="q-customer" required hint="לפחות שתי אותיות">
+                <Input id="q-customer" autoFocus value={search} onChange={(e) => setSearch(e.target.value)} />
+              </Field>
               {customers.data && customers.data.length > 0 ? (
                 <ul className="mt-1 max-h-40 overflow-auto rounded-lg border border-border">
                   {customers.data.map((c) => (
@@ -249,7 +254,7 @@ function NewQuoteDialog({ onClose, onCreated }: { onClose: () => void; onCreated
                   ))}
                 </ul>
               ) : null}
-            </Field>
+            </div>
           )}
 
           <fieldset className="space-y-1">

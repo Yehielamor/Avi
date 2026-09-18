@@ -35,7 +35,11 @@ describe('formatVisit', () => {
   it('shows Israel time, not the server’s', () => {
     // 07:00Z בספטמבר = 10:00 שעון קיץ ישראלי. שרת ב-UTC היה כותב 07:00.
     const text = formatVisit(new Date('2026-09-20T07:00:00Z'), new Date('2026-09-20T09:00:00Z'));
-    expect(text).toContain('10:00');
-    expect(text).toContain('12:00');
+    expect(text).toContain('בין 10:00 ל-12:00');
+  });
+
+  it('never writes a bare numeric range, which RTL rendering reverses', () => {
+    const text = formatVisit(new Date('2026-09-20T07:00:00Z'), new Date('2026-09-20T09:00:00Z'));
+    expect(text).not.toMatch(/\d{2}:\d{2}\s*[–-]\s*\d{2}:\d{2}/);
   });
 });

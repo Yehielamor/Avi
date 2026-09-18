@@ -22,7 +22,6 @@ export interface ShareResult {
 
 export interface PublicTaskView {
   businessName: string;
-  customerFirstName: string | null;
   title: string;
   status: CustomerStatus;
   scheduledStart: Date | null;
@@ -64,9 +63,10 @@ export class TaskStatusService {
       });
       await this.audit(tx, tenantId, actor.id, 'task.status_link_shared', taskId, {});
 
-      const greeting = firstName(task.customer.name) ? `שלום ${firstName(task.customer.name)}, ` : 'שלום, ';
+      // בלי שם הלקוח: לקוח יכול להיות עסק ("מסעדת ..."), ואין דרך אמינה
+      // לדעת מתי המילה הראשונה היא שם פרטי.
       const when = task.scheduledStart ? ` הביקור נקבע ל${formatVisit(task.scheduledStart, task.scheduledEnd)}.` : '';
-      const message = `${greeting}כאן ${task.tenant.name}.${when} אפשר לראות את מצב העבודה ולאשר את המועד כאן: ${url}`;
+      const message = `שלום, כאן ${task.tenant.name}.${when} אפשר לראות את מצב העבודה ולאשר את המועד כאן: ${url}`;
       return { url, waUrl: buildWaLink(task.customer.phone, message), message };
     });
   }
@@ -148,7 +148,6 @@ export class TaskStatusService {
           customerConfirmedAt: true,
           rescheduleRequest: true,
           assignedTo: { select: { name: true } },
-          customer: { select: { name: true } },
           tenant: { select: { name: true } },
         },
       });
@@ -158,7 +157,6 @@ export class TaskStatusService {
       const open = status !== 'done' && status !== 'cancelled';
       return {
         businessName: task.tenant.name,
-        customerFirstName: firstName(task.customer.name),
         title: task.title,
         status,
         scheduledStart: task.scheduledStart,

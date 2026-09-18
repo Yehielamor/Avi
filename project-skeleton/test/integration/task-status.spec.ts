@@ -84,7 +84,6 @@ describe('TaskStatusService (public links)', () => {
     const view = await service.view(tokenOf(url));
     expect(view).toMatchObject({
       businessName: 'מיזוג א',
-      customerFirstName: 'דנה',
       technicianFirstName: 'יוסי',
       title: 'מזגן מטפטף',
       status: 'received',
@@ -95,6 +94,8 @@ describe('TaskStatusService (public links)', () => {
     expect(json).not.toContain('רחוב סודי');
     expect(json).not.toContain('050');
     expect(json).not.toContain('כהן');
+    // גם לא שם הלקוח: הקישור יכול להיות מועבר הלאה.
+    expect(json).not.toContain('דנה');
   });
 
   it('stores only a hash of the token', async () => {

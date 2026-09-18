@@ -16,10 +16,18 @@ import {
 } from '@/components/ui';
 import { PriorityBadge, TaskStatusBadge } from './task-status';
 import { CloseTaskDialog } from './close-task-dialog';
+import { VisitCard } from './visit-card';
 import { request } from '@/lib/api';
 import { taskDetailSchema, type ChecklistItem } from '@/lib/schemas';
 import { useAuth } from '@/lib/auth';
 import { formatDateTime, formatRelative } from '@/lib/utils';
+
+const SOURCE_LABEL = {
+  EMAIL: 'ממייל',
+  MANUAL: 'ידנית',
+  CUSTOMER_LINK: 'מהלקוח',
+  QUOTE: 'מהצעת מחיר',
+} as const;
 
 export function TaskDetailPage() {
   const { taskId } = useParams({ from: '/protected/tasks/$taskId' });
@@ -78,7 +86,7 @@ export function TaskDetailPage() {
               <TaskStatusBadge status={t.status} />
               <PriorityBadge priority={t.priority} />
               <Badge tone="neutral" dot={false}>
-                {t.source === 'EMAIL' ? 'ממייל' : 'ידנית'}
+                {SOURCE_LABEL[t.source]}
               </Badge>
             </div>
           </div>
@@ -179,6 +187,7 @@ export function TaskDetailPage() {
         </div>
 
         <div className="space-y-5">
+          <VisitCard task={t} />
           <Card>
             <CardHeader>
               <CardTitle>לקוח</CardTitle>

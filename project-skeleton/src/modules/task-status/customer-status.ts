@@ -32,5 +32,7 @@ export function formatVisit(start: Date, end: Date | null): string {
   }).format(start);
   const time = (d: Date) =>
     new Intl.DateTimeFormat('he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' }).format(d);
-  return end ? `${day}, ${time(start)}–${time(end)}` : `${day}, ${time(start)}`;
+  // במילים ולא "10:00–12:00": בהודעה עברית, WhatsApp מהפך טווח מספרים
+  // ויזואלית, והלקוח קורא את שעת הסיום ראשונה.
+  return end ? `${day}, בין ${time(start)} ל-${time(end)}` : `${day} בשעה ${time(start)}`;
 }

@@ -17,6 +17,7 @@ import { InventoryPage } from '@/features/inventory/inventory-page';
 import { PriceListPage } from '@/features/price-list/price-list-page';
 import { InvoicesPage } from '@/features/invoices/invoices-page';
 import { SettingsPage } from '@/features/settings/settings-page';
+import { TaskStatusPage } from '@/features/public/task-status-page';
 import { tokenStore } from '@/lib/api';
 
 /**
@@ -52,6 +53,16 @@ const onboardingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/onboarding',
   component: OnboardingPage,
+});
+
+/**
+ * דפים שהלקוח של העסק פותח מקישור ב-WhatsApp. בלי התחברות ובלי מעטפת
+ * האפליקציה: הטוקן בכתובת הוא ההרשאה, והשרת מאמת אותו בכל בקשה.
+ */
+const publicStatusRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/c/s/$token',
+  component: TaskStatusPage,
 });
 
 const protectedRoute = createRoute({
@@ -134,6 +145,7 @@ const settingsTabRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   loginRoute,
   onboardingRoute,
+  publicStatusRoute,
   protectedRoute.addChildren([
     indexRoute,
     tasksRoute,

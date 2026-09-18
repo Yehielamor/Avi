@@ -50,7 +50,9 @@ export const taskSchema = z.object({
   description: z.string().nullish(),
   status: taskStatusSchema,
   priority: z.number().int(),
-  source: z.enum(['EMAIL', 'MANUAL']),
+  // חייב לכלול כל מקור שהשרת יכול להחזיר. ערך לא מוכר מפיל את הפענוח של
+  // הרשימה כולה, לא רק של המשימה הזו.
+  source: z.enum(['EMAIL', 'MANUAL', 'CUSTOMER_LINK', 'QUOTE']),
   customerId: z.string().uuid(),
   customer: customerSchema.nullish(),
   assignedToUserId: z.string().uuid().nullish(),
@@ -58,6 +60,12 @@ export const taskSchema = z.object({
   checklist: z.array(checklistItemSchema).nullish(),
   createdAt: z.string(),
   closedAt: z.string().nullish(),
+  scheduledStart: z.string().nullish(),
+  scheduledEnd: z.string().nullish(),
+  customerConfirmedAt: z.string().nullish(),
+  rescheduleRequest: z.string().nullish(),
+  rescheduleRequestedAt: z.string().nullish(),
+  onTheWayAt: z.string().nullish(),
 });
 export type Task = z.infer<typeof taskSchema>;
 

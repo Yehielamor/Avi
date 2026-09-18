@@ -1,0 +1,47 @@
+# =============================================================================
+# שכבת-על לשרת שכבר מריץ reverse proxy משלו (Caddy/nginx על המארח).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.host-proxy.yml up -d
+#
+# נוצר בשביל ה-Droplet שמגיש כבר את api.getdirekto.com: Caddy של המארח
+# מחזיק את 80/443, ולכן ה-Caddy שלנו לא עולה — אחרת אחד מהשניים היה
+# נכשל על הפורט, או שהשני היה מושבת. במקום זה האפליקציה מאזינה על
+# loopback בלבד, והמארח מוסיף בלוק אחד (ראו deploy/host-caddy.snippet).
+#
+# התמונה נבנית מראש ונטענת (docker load). בנייה על מכונה של ליבה אחת
+# ו-1GB קורסת מחוסר זיכרון באמצע npm ci.
+# =============================================================================
+services:
+  migrate:
+    build: !reset null
+    image: craftmind-app:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required}
+    pull_policy: never
+
+  app:
+    build: !reset null
+    image: craftmind-app:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required}
+    pull_policy: never
+    # loopback בלבד. פורט שנפתח על 0.0.0.0 עוקף את ה-proxy ואת TLS.
+    ports:
+      - "127.0.0.1:3000:3000"
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 512M }
+        reservations: { memory: 128M }
+
+  postgres:
+    # המכונה כולה 1GB. ברירות המחדל של Postgres מניחות יותר.
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=40", "-c", "work_mem=2MB"]
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 384M }
+        reservations: { memory: 96M }
+
+  redis:
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 96M }
+
+  caddy:
+    profiles: ["never"]

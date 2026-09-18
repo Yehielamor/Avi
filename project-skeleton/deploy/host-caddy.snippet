@@ -1,0 +1,18 @@
+# נוסף ל-/etc/caddy/Caddyfile של המארח. Caddy מנפיק תעודה ל-api.craftmind-ai.com
+# לבד ב-HTTP-01, ברגע שרשומת ה-DNS מצביעה לשרת.
+api.craftmind-ai.com {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options    "nosniff"
+		X-Frame-Options           "DENY"
+		Referrer-Policy           "no-referrer"
+		-Server
+	}
+	request_body {
+		max_size 25MB
+	}
+	@health path /v1/health/*
+	respond @health 404
+	reverse_proxy 127.0.0.1:3000
+}

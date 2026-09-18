@@ -39,6 +39,10 @@ const TENANT_SCOPED_TABLES = [
   'llm_usage',
   'tenants',
   'invoice_line_items',
+  'public_links',
+  'equipment',
+  'quotes',
+  'quote_lines',
 ] as const;
 
 describe('Row-Level Security — tenant isolation', () => {
@@ -103,6 +107,21 @@ describe('Row-Level Security — tenant isolation', () => {
       // אם אחד מאלה true, כל שאר הקובץ הזה חסר משמעות.
       expect(row!.rolbypassrls).toBe(false);
       expect(row!.rolsuper).toBe(false);
+    });
+
+    it('leaves no table with a tenantId column unprotected', async () => {
+      // הרשימה למעלה ידנית, ולכן יכולה להישכח. הבדיקה הזו לא: היא שואלת את
+      // ה-DB אילו טבלאות נושאות tenantId, ודורשת FORCE RLS על כל אחת.
+      const unprotected = await prisma.$queryRaw<Array<{ table_name: string }>>`
+        SELECT c.table_name
+        FROM information_schema.columns c
+        JOIN pg_class p ON p.relname = c.table_name
+        JOIN pg_namespace n ON n.oid = p.relnamespace AND n.nspname = 'public'
+        WHERE c.table_schema = 'public'
+          AND c.column_name = 'tenantId'
+          AND NOT (p.relrowsecurity AND p.relforcerowsecurity)
+      `;
+      expect(unprotected.map((r) => r.table_name)).toEqual([]);
     });
 
     it.each(TENANT_SCOPED_TABLES)('table %s has RLS enabled AND forced', async (table) => {

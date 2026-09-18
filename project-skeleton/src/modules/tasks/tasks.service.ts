@@ -78,7 +78,9 @@ export class TasksService {
           ...(filters.customerId ? { customerId: filters.customerId } : {}),
           ...(filters.assignedToMe ? { assignedToUserId: actorUserId } : {}),
         },
-        include: { customer: true, assignedTo: true },
+        // assignedTo בשדות מפורשים בלבד: `assignedTo: true` החזיר את כל שורת
+        // המשתמש — כולל passwordHash — לכל מי שרואה את הרשימה (QA 18.09, Critical).
+        include: { customer: true, assignedTo: { select: { id: true, name: true, role: true } } },
         // priority עולה = דחוף קודם (1=דחוף). המיון נעשה ב-DB ולא
         // בקליינט, אחרת הוא נכון רק בתוך העמוד שנשלף.
         orderBy: filters.urgentFirst

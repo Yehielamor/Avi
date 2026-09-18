@@ -173,16 +173,28 @@ export class TaskStatusService {
   async confirm(token: string): Promise<PublicTaskView> {
     const { tenantId, link } = await this.links.resolve(token, PublicLinkPurpose.TASK_STATUS);
     await this.prisma.forTenant(tenantId, async (tx) => {
+      const confirmable = {
+        id: link.taskId!,
+        tenantId,
+        scheduledStart: { not: null },
+        status: { notIn: [TaskStatus.CLOSED, TaskStatus.CANCELLED] },
+      } satisfies Prisma.TaskWhereInput;
+      // רק מועד שעוד לא אושר. לחיצה חוזרת לא דורסת את זמן האישור המקורי
+      // ולא מוסיפה שורת audit — קודם כל לחיצה עשתה את שניהם (QA 18.09, F16).
+      // מועד חדש או בקשת שינוי מאפסים את customerConfirmedAt, כך שאישור
+      // מחדש אחריהם עדיין עובר כאן.
       const { count } = await tx.task.updateMany({
-        where: {
-          id: link.taskId!,
-          tenantId,
-          scheduledStart: { not: null },
-          status: { notIn: [TaskStatus.CLOSED, TaskStatus.CANCELLED] },
-        },
+        where: { ...confirmable, customerConfirmedAt: null },
         data: { customerConfirmedAt: new Date(), rescheduleRequest: null, rescheduleRequestedAt: null },
       });
-      if (count === 0) throw new ConflictException('There is no visit time to confirm');
+      if (count === 0) {
+        const alreadyConfirmed = await tx.task.findFirst({
+          where: { ...confirmable, customerConfirmedAt: { not: null } },
+          select: { id: true },
+        });
+        if (alreadyConfirmed) return;
+        throw new ConflictException('There is no visit time to confirm');
+      }
       await this.audit(tx, tenantId, null, 'task.customer_confirmed', link.taskId!, { via: 'public_link' });
     });
     return this.view(token);

@@ -161,6 +161,29 @@ describe('TaskStatusService (public links)', () => {
     expect((await service.view(tokenOf(url))).customerConfirmedAt).toBeNull();
   });
 
+  it('treats a repeated confirm as a no-op: same timestamp, one audit row (QA F16)', async () => {
+    await service.schedule(A, ids.taskA, { scheduledStart: '2026-10-01T07:00:00.000Z' }, ids.techA);
+    const { url } = await service.share(A, ids.taskA, techA());
+
+    const first = await service.confirm(tokenOf(url));
+    const again = await service.confirm(tokenOf(url));
+    await service.confirm(tokenOf(url));
+
+    expect(again.customerConfirmedAt).toEqual(first.customerConfirmedAt);
+    expect(
+      await privileged.auditLog.count({ where: { tenantId: A, action: 'task.customer_confirmed', entityId: ids.taskA } }),
+    ).toBe(1);
+
+    // אחרי בקשת שינוי, אישור חדש הוא אישור אמיתי ונרשם.
+    await service.requestReschedule(tokenOf(url), 'אולי מחר');
+    const reconfirmed = await service.confirm(tokenOf(url));
+    expect(reconfirmed).toMatchObject({ rescheduleRequested: false });
+    expect(reconfirmed.customerConfirmedAt).not.toBeNull();
+    expect(
+      await privileged.auditLog.count({ where: { tenantId: A, action: 'task.customer_confirmed', entityId: ids.taskA } }),
+    ).toBe(2);
+  });
+
   it('records a reschedule request and drops the confirmation', async () => {
     await service.schedule(A, ids.taskA, { scheduledStart: '2026-10-01T07:00:00.000Z' }, ids.techA);
     const { url } = await service.share(A, ids.taskA, techA());

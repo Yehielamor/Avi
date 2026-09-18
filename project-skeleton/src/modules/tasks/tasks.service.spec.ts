@@ -90,6 +90,13 @@ describe('TasksService', () => {
       expect(forTenant).toHaveBeenCalledWith(TENANT, expect.any(Function));
     });
 
+    it('never loads the whole assigned user row (it holds passwordHash)', async () => {
+      await service.findAll(TENANT);
+      expect(tx.task.findMany.mock.calls[0]?.[0].include.assignedTo).toEqual({
+        select: { id: true, name: true, role: true },
+      });
+    });
+
     it('defaults the page size to 50', async () => {
       await service.findAll(TENANT);
       expect(tx.task.findMany.mock.calls[0]?.[0]).toMatchObject({ take: 50 });

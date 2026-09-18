@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileSignature, Plus, Send } from 'lucide-react';
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 import { PageHeader } from '@/components/page-header';
 import { ShareDialog, shareResultSchema, type ShareResult } from '@/components/share-dialog';
@@ -201,13 +201,26 @@ export function NewQuoteDialog({ onClose, onCreated }: { onClose: () => void; on
     return (cents / 100).toFixed(2);
   }, [prices.data, codes]);
 
+  // מפתח אידמפוטנטיות אחד לכל *הגשה*: ניסיון חוזר של אותו תוכן (לחיצה
+  // כפולה, "נסה שוב" אחרי timeout) שולח את אותו מפתח, והשרת מחזיר את
+  // ההצעה שכבר נוצרה במקום ליצור שנייה עם מספר רץ חדש. תוכן שונה מקבל
+  // מפתח חדש — אחרת השרת היה דוחה ב-422 (מפתח זהה, גוף אחר).
+  const submission = useRef<{ payload: string; key: string } | null>(null);
+
   const create = useMutation({
-    mutationFn: () =>
-      request('/quotes', {
+    mutationFn: () => {
+      const body = { customerId: customer!.id, priceCodes: codes, ...(notes.trim() && { notes: notes.trim() }) };
+      const payload = JSON.stringify(body);
+      if (submission.current?.payload !== payload) {
+        submission.current = { payload, key: crypto.randomUUID() };
+      }
+      return request('/quotes', {
         method: 'POST',
-        body: { customerId: customer!.id, priceCodes: codes, ...(notes.trim() && { notes: notes.trim() }) },
+        body,
         schema: quoteSchema,
-      }),
+        idempotencyKey: submission.current.key,
+      });
+    },
     onSuccess: onCreated,
     onError: (e) => toast.error('יצירת ההצעה נכשלה', e instanceof ApiError ? e.message : undefined),
   });

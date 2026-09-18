@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '@/components/ui/toast';
@@ -72,5 +72,73 @@ describe('NewQuoteDialog — customer search', () => {
     expect(screen.getByText('דנה לוי')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'החלפה' })).toBeInTheDocument();
     expect(screen.queryByLabelText(/^לקוח/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * QA 18.09, F5: יצירת הצעה לא שלחה Idempotency-Key, ולכן ניסיון חוזר אחרי
+ * timeout יצר הצעה שנייה עם מספר רץ חדש. אותה הגשה = אותו מפתח; תוכן שונה
+ * = מפתח חדש (אחרת השרת דוחה ב-422).
+ */
+describe('NewQuoteDialog — idempotent create', () => {
+  const price = {
+    id: '33333333-3333-3333-3333-333333333333',
+    code: 'SERVICE',
+    description: 'טיפול תקופתי',
+    price: '350.00',
+    isActive: true,
+    usedByTemplates: 0,
+    updatedAt: '2026-09-01T10:00:00.000Z',
+  };
+
+  beforeEach(() => {
+    request.mockImplementation(async (path: string) => {
+      if (path.startsWith('/customers/search')) return customers;
+      if (path.startsWith('/price-list')) return [price];
+      if (path === '/quotes') throw new api.ApiError(0, 'network');
+      throw new Error(`unexpected request: ${path}`);
+    });
+  });
+
+  const keysSent = () =>
+    request.mock.calls
+      .filter(([path]) => path === '/quotes')
+      .map(([, opts]) => (opts as { idempotencyKey?: string }).idempotencyKey);
+
+  async function fillForm() {
+    renderDialog();
+    fireEvent.change(screen.getByLabelText(/^לקוח/), { target: { value: 'דנ' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'דנה לוי' }));
+    fireEvent.click(await screen.findByRole('checkbox'));
+  }
+
+  const submit = async (times: number) => {
+    const button = screen.getByRole('button', { name: 'יצירה ושליחה' });
+    for (let i = 1; i <= times; i++) {
+      fireEvent.click(button);
+      await waitFor(() => expect(keysSent()).toHaveLength(i));
+      await waitFor(() => expect(button).not.toBeDisabled());
+    }
+  };
+
+  it('sends the same key when the same submission is retried', async () => {
+    await fillForm();
+    await submit(2);
+
+    const [first, second] = keysSent();
+    expect(first).toMatch(/^[0-9a-f-]{36}$/);
+    expect(second).toBe(first);
+  });
+
+  it('sends a new key once the submission changes', async () => {
+    await fillForm();
+    await submit(1);
+    fireEvent.change(screen.getByLabelText('הערות ללקוח'), { target: { value: 'בבקשה בבוקר' } });
+    fireEvent.click(screen.getByRole('button', { name: 'יצירה ושליחה' }));
+    await waitFor(() => expect(keysSent()).toHaveLength(2));
+
+    const [first, second] = keysSent();
+    expect(second).toBeDefined();
+    expect(second).not.toBe(first);
   });
 });

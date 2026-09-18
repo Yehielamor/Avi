@@ -186,6 +186,11 @@ export class EquipmentService {
         },
       });
       if (!eq) throw new NotFoundException('Equipment not found');
+      // כבר יש משימה פתוחה: הטיפול בדרך. תזכורת נוספת הייתה נותנת ללקוח
+      // קישור שני, ומשם משימה כפולה לאותו ציוד (QA 18.09, F9).
+      if (await this.hasOpenTask(tx, tenantId, equipmentId)) {
+        throw new ConflictException('This equipment already has an open task');
+      }
 
       const { url } = await this.links.create(tx, {
         tenantId,
@@ -211,8 +216,9 @@ export class EquipmentService {
   async bookingView(token: string) {
     const { tenantId, link } = await this.links.resolve(token, PublicLinkPurpose.BOOKING);
     return this.prisma.forTenant(tenantId, async (tx) => {
+      // ציוד שהושבת אחרי שנשלחה התזכורת — הקישור מת איתו.
       const eq = await tx.equipment.findFirst({
-        where: { id: link.equipmentId!, tenantId },
+        where: { id: link.equipmentId!, tenantId, isActive: true },
         select: { kind: true, location: true, tenant: { select: { name: true } } },
       });
       if (!eq) throw new NotFoundException('Link not found or expired');
@@ -220,7 +226,8 @@ export class EquipmentService {
       return {
         businessName: eq.tenant.name,
         equipment: { kind: eq.kind, location: eq.location },
-        alreadyBooked: link.usedAt !== null,
+        // גם משימה פתוחה מקישור אחר (או שנפתחה ידנית) = הטיפול כבר נקבע.
+        alreadyBooked: link.usedAt !== null || (await this.hasOpenTask(tx, tenantId, link.equipmentId!)),
         minDate: addDays(today, 1),
         maxDate: addDays(today, MAX_BOOKING_DAYS_AHEAD),
       };
@@ -247,6 +254,19 @@ export class EquipmentService {
         data: { usedAt: new Date() },
       });
       if (count === 0) throw new ConflictException('This link was already used to book a visit');
+
+      // נעילת שורת הציוד: שתי הזמנות מקישורים שונים לאותו ציוד מסודרות
+      // בתור, כך שהשנייה רואה את המשימה של הראשונה. זריקה כאן מגלגלת גם
+      // את סימון הקישור כמשומש.
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM equipment
+        WHERE id = ${link.equipmentId!}::uuid AND "tenantId" = ${tenantId}::uuid AND "isActive" = true
+        FOR UPDATE
+      `;
+      if (locked.length === 0) throw new NotFoundException('Link not found or expired');
+      if (await this.hasOpenTask(tx, tenantId, link.equipmentId!)) {
+        throw new ConflictException('A visit for this equipment is already being arranged');
+      }
 
       const eq = await tx.equipment.findFirstOrThrow({
         where: { id: link.equipmentId!, tenantId },
@@ -279,6 +299,14 @@ export class EquipmentService {
   }
 
   // ---------------------------------------------------------------------------
+
+  private async hasOpenTask(tx: Tx, tenantId: string, equipmentId: string): Promise<boolean> {
+    const open = await tx.task.findFirst({
+      where: { tenantId, equipmentId, status: { notIn: [TaskStatus.CLOSED, TaskStatus.CANCELLED] } },
+      select: { id: true },
+    });
+    return open !== null;
+  }
 
   /** תאריך טיפול קודם — לא בעתיד. תאריך עתידי היה מסתיר את הציוד מהרשימה לחודשים. */
   private pastDate(isoDate: string): Date {

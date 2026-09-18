@@ -185,6 +185,54 @@ describe('EquipmentService', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
+    describe('when the equipment already has an open task (QA F9)', () => {
+      it('refuses another reminder with 409 and sends no new link', async () => {
+        const e = await eq({ lastServicedAt: daysAgo(400) });
+        const { url } = await service.remind(A, e.id, ACTOR);
+        await service.book(tokenOf(url), { windows: [{ date: dayFromToday(3), part: 'morning' }] });
+        const links = await privileged.publicLink.count({ where: { tenantId: A } });
+
+        await expect(service.remind(A, e.id, ACTOR)).rejects.toBeInstanceOf(ConflictException);
+        expect(await privileged.publicLink.count({ where: { tenantId: A } })).toBe(links);
+      });
+
+      it('refuses to book a second task from a link sent before the task was opened', async () => {
+        const e = await eq({ lastServicedAt: daysAgo(400) });
+        const { url } = await service.remind(A, e.id, ACTOR);
+        await privileged.task.create({
+          data: { tenantId: A, customerId: customerA, equipmentId: e.id, title: 'ידני', source: 'MANUAL' },
+        });
+
+        expect(await service.bookingView(tokenOf(url))).toMatchObject({ alreadyBooked: true });
+        await expect(
+          service.book(tokenOf(url), { windows: [{ date: dayFromToday(3), part: 'morning' }] }),
+        ).rejects.toBeInstanceOf(ConflictException);
+        expect(await privileged.task.count({ where: { tenantId: A, equipmentId: e.id } })).toBe(1);
+        // הזריקה גלגלה אחורה גם את סימון הקישור: הוא לא "נוצל" על כלום.
+        expect((await privileged.publicLink.findFirstOrThrow({ where: { tenantId: A } })).usedAt).toBeNull();
+      });
+
+      it('allows a reminder again once that task is closed', async () => {
+        const e = await eq({ lastServicedAt: daysAgo(400) });
+        await privileged.task.create({
+          data: { tenantId: A, customerId: customerA, equipmentId: e.id, title: 'ישן', source: 'MANUAL', status: 'CLOSED' },
+        });
+        await expect(service.remind(A, e.id, ACTOR)).resolves.toMatchObject({ url: expect.any(String) });
+      });
+    });
+
+    it('kills the booking link when the equipment is deactivated after the reminder', async () => {
+      const e = await eq({ lastServicedAt: daysAgo(400) });
+      const { url } = await service.remind(A, e.id, ACTOR);
+      await privileged.equipment.update({ where: { id: e.id }, data: { isActive: false } });
+
+      await expect(service.bookingView(tokenOf(url))).rejects.toBeInstanceOf(NotFoundException);
+      await expect(
+        service.book(tokenOf(url), { windows: [{ date: dayFromToday(3), part: 'morning' }] }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(await privileged.task.count({ where: { tenantId: A } })).toBe(0);
+    });
+
     it('does not open a booking link as a status link', async () => {
       const e = await eq({ lastServicedAt: daysAgo(400) });
       const { url } = await service.remind(A, e.id, ACTOR);

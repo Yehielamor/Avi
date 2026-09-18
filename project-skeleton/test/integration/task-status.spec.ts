@@ -184,6 +184,13 @@ describe('TaskStatusService (public links)', () => {
     ).toBe(2);
   });
 
+  it('refuses to schedule a finished task with 409, and an unknown one with 404 (QA F18)', async () => {
+    await privileged.task.update({ where: { id: ids.taskA }, data: { status: 'CLOSED', closedAt: new Date() } });
+    const at = { scheduledStart: '2026-10-01T07:00:00.000Z' };
+    await expect(service.schedule(A, ids.taskA, at, ids.techA)).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.schedule(A, ids.taskB, at, ids.techA)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   it('records a reschedule request and drops the confirmation', async () => {
     await service.schedule(A, ids.taskA, { scheduledStart: '2026-10-01T07:00:00.000Z' }, ids.techA);
     const { url } = await service.share(A, ids.taskA, techA());

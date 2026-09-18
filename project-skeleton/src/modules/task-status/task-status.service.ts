@@ -97,7 +97,13 @@ export class TaskStatusService {
           onTheWayAt: null,
         },
       });
-      if (count === 0) throw new NotFoundException('Task not found');
+      if (count === 0) {
+        // משימה שהסתיימה היא 409, כמו ב-"בדרך" — לא 404 כאילו אינה קיימת
+        // (QA 18.09, F18). רק משימה שבאמת לא נמצאה בטננט היא 404.
+        const exists = await tx.task.findFirst({ where: { id: taskId, tenantId }, select: { id: true } });
+        if (exists) throw new ConflictException('Task is already finished');
+        throw new NotFoundException('Task not found');
+      }
       await this.audit(tx, tenantId, actorId, 'task.scheduled', taskId, {
         scheduledStart: start.toISOString(),
         scheduledEnd: end?.toISOString() ?? null,

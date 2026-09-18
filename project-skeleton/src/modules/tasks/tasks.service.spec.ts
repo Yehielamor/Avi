@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { Prisma, TaskStatus } from '@prisma/client';
+import { Prisma, TaskStatus, UserRole } from '@prisma/client';
 
 import { TasksService } from './tasks.service';
 import type { PrismaService, TenantClient } from '../../database/prisma.service';
@@ -24,6 +24,9 @@ describe('TasksService', () => {
   const ACTOR = '33333333-3333-3333-3333-333333333333';
   const CUSTOMER = '44444444-4444-4444-4444-444444444444';
   const TEMPLATE = '55555555-5555-5555-5555-555555555555';
+  const OWNER = { id: ACTOR, role: UserRole.OWNER };
+  const MANAGER = { id: ACTOR, role: UserRole.MANAGER };
+  const FIELD = { id: ACTOR, role: UserRole.FIELD };
 
   /** יומן קריאות; 'BEGIN'/'COMMIT' מסמנים את גבולות הטרנזקציה. */
   let log: string[];
@@ -122,7 +125,7 @@ describe('TasksService', () => {
     });
 
     it('filters assignedToMe by the actor from the token', async () => {
-      await service.findAll(TENANT, { assignedToMe: true }, ACTOR);
+      await service.findAll(TENANT, { assignedToMe: true }, OWNER);
       expect(whereOf(tx.task.findMany)).toMatchObject({ assignedToUserId: ACTOR });
     });
 
@@ -135,7 +138,7 @@ describe('TasksService', () => {
     });
 
     it('does not filter by assignee when assignedToMe is absent', async () => {
-      await service.findAll(TENANT, {}, ACTOR);
+      await service.findAll(TENANT, {}, OWNER);
       expect(whereOf(tx.task.findMany)).not.toHaveProperty('assignedToUserId');
     });
 
@@ -257,7 +260,7 @@ describe('TasksService', () => {
 
   describe('close', () => {
     it('conditions the update on the tenant and on the task not being closed', async () => {
-      await service.close(TENANT, TASK, undefined, ACTOR);
+      await service.close(TENANT, TASK, undefined, OWNER);
       expect(whereOf(tx.task.updateMany)).toEqual({
         id: TASK,
         tenantId: TENANT,
@@ -266,7 +269,7 @@ describe('TasksService', () => {
     });
 
     it('writes audit and outbox on a real close', async () => {
-      const result = await service.close(TENANT, TASK, [{ label: 'a', done: true }], ACTOR);
+      const result = await service.close(TENANT, TASK, [{ label: 'a', done: true }], OWNER);
 
       expect(result).toEqual({ taskId: TASK, status: TaskStatus.CLOSED, alreadyClosed: false });
       expect(tx.auditLog.create).toHaveBeenCalledTimes(1);
@@ -278,7 +281,7 @@ describe('TasksService', () => {
     it('writes the outbox event inside the same transaction as the state change', async () => {
       // זו כל הנקודה של ה-outbox: אירוע שנכתב אחרי ה-commit יכול
       // להיכתב על סגירה שלא התרחשה, או להיעלם כשהסגירה כן התרחשה.
-      await service.close(TENANT, TASK, undefined, ACTOR);
+      await service.close(TENANT, TASK, undefined, OWNER);
       // עדכון "טופל לאחרונה" של הציוד — גם הוא בתוך אותה טרנזקציה.
       expect(log).toEqual(['BEGIN', 'task.updateMany', 'audit.create', 'equipment.markServiced', 'outbox.create', 'COMMIT']);
       expect(forTenant).toHaveBeenCalledTimes(1);
@@ -291,7 +294,7 @@ describe('TasksService', () => {
       });
 
       it('reports alreadyClosed instead of throwing', async () => {
-        await expect(service.close(TENANT, TASK, undefined, ACTOR)).resolves.toEqual({
+        await expect(service.close(TENANT, TASK, undefined, OWNER)).resolves.toEqual({
           taskId: TASK,
           status: TaskStatus.CLOSED,
           alreadyClosed: true,
@@ -299,30 +302,30 @@ describe('TasksService', () => {
       });
 
       it('does not touch equipment on a repeated close', async () => {
-        await service.close(TENANT, TASK, undefined, ACTOR);
+        await service.close(TENANT, TASK, undefined, OWNER);
         expect(tx.$executeRaw).not.toHaveBeenCalled();
       });
 
       it('writes no second outbox event', async () => {
         // אירוע שני = ניכוי מלאי כפול ומייל שני ללקוח. זה הבאג המקורי.
-        await service.close(TENANT, TASK, undefined, ACTOR);
+        await service.close(TENANT, TASK, undefined, OWNER);
         expect(tx.outboxEvent.create).not.toHaveBeenCalled();
       });
 
       it('writes no second audit row', async () => {
-        await service.close(TENANT, TASK, undefined, ACTOR);
+        await service.close(TENANT, TASK, undefined, OWNER);
         expect(tx.auditLog.create).not.toHaveBeenCalled();
       });
 
       it('scopes the existence probe to the tenant', async () => {
-        await service.close(TENANT, TASK, undefined, ACTOR);
+        await service.close(TENANT, TASK, undefined, OWNER);
         expect(whereOf(tx.task.findFirst)).toEqual({ id: TASK, tenantId: TENANT });
       });
 
       it('throws 404 when the id belongs to another tenant', async () => {
         // משימה של טננט אחר אינה נראית מכאן, ולכן היא 404 ולא "כבר סגורה".
         tx.task.findFirst.mockResolvedValue(null);
-        await expect(service.close(TENANT, TASK, undefined, ACTOR)).rejects.toBeInstanceOf(
+        await expect(service.close(TENANT, TASK, undefined, OWNER)).rejects.toBeInstanceOf(
           NotFoundException,
         );
         expect(tx.outboxEvent.create).not.toHaveBeenCalled();
@@ -343,19 +346,19 @@ describe('TasksService', () => {
 
     it('overwrites the checklist only when one was supplied', async () => {
       // בלי התנאי, סגירה בלי checklist הייתה מוחקת את זה שכבר נשמר.
-      await service.close(TENANT, TASK, undefined, ACTOR);
+      await service.close(TENANT, TASK, undefined, OWNER);
       const data = (tx.task.updateMany.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
       expect(data).not.toHaveProperty('checklist');
     });
 
     it('stores the supplied checklist', async () => {
       const checklist = [{ label: 'a', done: true, sku: 'S1', qty: 2 }];
-      await service.close(TENANT, TASK, checklist, ACTOR);
+      await service.close(TENANT, TASK, checklist, OWNER);
       expect(tx.task.updateMany.mock.calls[0]?.[0]).toMatchObject({ data: { checklist } });
     });
 
     it('records the closing user and the checklist size in the audit row', async () => {
-      await service.close(TENANT, TASK, [{ label: 'a', done: true }], ACTOR);
+      await service.close(TENANT, TASK, [{ label: 'a', done: true }], OWNER);
       expect(tx.auditLog.create.mock.calls[0]?.[0]).toMatchObject({
         data: expect.objectContaining({
           userId: ACTOR,
@@ -364,6 +367,54 @@ describe('TasksService', () => {
           metadata: { checklistItems: 1 },
         }),
       });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+
+  describe('FIELD scope (QA 18.09, F2)', () => {
+    it('lists only the technician’s own tasks, even without assignedToMe', async () => {
+      await service.findAll(TENANT, {}, FIELD);
+      expect(whereOf(tx.task.findMany)).toMatchObject({ tenantId: TENANT, assignedToUserId: ACTOR });
+    });
+
+    it.each([
+      ['OWNER', OWNER],
+      ['MANAGER', MANAGER],
+    ])('does not narrow the list for %s', async (_l, actor) => {
+      await service.findAll(TENANT, {}, actor);
+      expect(whereOf(tx.task.findMany)).not.toHaveProperty('assignedToUserId');
+    });
+
+    it('filters findOne by assignee inside the WHERE, so another’s task is a 404', async () => {
+      tx.task.findFirst.mockResolvedValue(null);
+      await expect(service.findOne(TENANT, TASK, FIELD)).rejects.toBeInstanceOf(NotFoundException);
+      expect(whereOf(tx.task.findFirst)).toEqual({ id: TASK, tenantId: TENANT, assignedToUserId: ACTOR });
+    });
+
+    it('does not narrow findOne for a manager', async () => {
+      await service.findOne(TENANT, TASK, MANAGER);
+      expect(whereOf(tx.task.findFirst)).toEqual({ id: TASK, tenantId: TENANT });
+    });
+
+    it('conditions close on the assignee, and 404s instead of reporting alreadyClosed', async () => {
+      tx.task.updateMany.mockResolvedValue({ count: 0 });
+      tx.task.findFirst.mockResolvedValue(null);
+
+      await expect(service.close(TENANT, TASK, [{ label: 'x', done: true }], FIELD)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(whereOf(tx.task.updateMany)).toMatchObject({ assignedToUserId: ACTOR });
+      // גם בדיקת הקיום מסוננת: אחרת טכנאי היה לומד שהמשימה קיימת וסגורה.
+      expect(whereOf(tx.task.findFirst)).toEqual({ id: TASK, tenantId: TENANT, assignedToUserId: ACTOR });
+      expect(tx.auditLog.create).not.toHaveBeenCalled();
+      expect(tx.outboxEvent.create).not.toHaveBeenCalled();
+    });
+
+    it('lets a technician close their own task', async () => {
+      const result = await service.close(TENANT, TASK, undefined, FIELD);
+      expect(result.alreadyClosed).toBe(false);
+      expect(tx.auditLog.create.mock.calls[0]?.[0]).toMatchObject({ data: expect.objectContaining({ userId: ACTOR }) });
     });
   });
 

@@ -124,7 +124,7 @@ describe('EquipmentService', () => {
     const task = await privileged.task.create({
       data: { tenantId: A, customerId: customerA, equipmentId: e.id, title: 't', source: 'MANUAL' },
     });
-    await tasks.close(A, task.id, [], ACTOR);
+    await tasks.close(A, task.id, [], { id: ACTOR, role: 'OWNER' });
 
     const after = await privileged.equipment.findUniqueOrThrow({ where: { id: e.id } });
     expect(after.lastServicedAt!.getTime()).toBeGreaterThan(Date.now() - 60_000);

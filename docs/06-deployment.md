@@ -106,3 +106,53 @@ curl -s -o /dev/null -w '%{http_code}' https://tenant.craftmind-ai.com/v1/tasks 
 - **אין מעקב שגיאות.** ראו [ניטור](04-infrastructure.md#ניטור) למה שצריך התראה.
 - **הטוקן ב-`sessionStorage`.** הנכון הוא cookie מסוג `HttpOnly`.
 - **אין בדיקות יחידה** — רק 47 בדיקות אינטגרציה ל-RLS.
+
+---
+
+## הפריסה הפעילה (ספטמבר 2026)
+
+| | |
+|---|---|
+| API | `https://api.craftmind-ai.com` |
+| שרת | DigitalOcean Droplet, FRA1, 1 vCPU / 1GB / 25GB, `164.90.161.15` |
+| תיקייה | `/opt/craftmind` (`.env` בהרשאות 600, נוצר על השרת) |
+| DNS | Cloudflare (חשבון amor5511), רשומת `A api` → IP, **DNS only** |
+| רשם | GoDaddy — נעילת העברה/מחיקה/עדכון פעילות, בתוקף עד 2029 |
+| TLS | Caddy של המארח, Let's Encrypt, חידוש אוטומטי |
+| ממשק | Vercel, `VITE_API_URL=https://api.craftmind-ai.com` |
+
+### למה המבנה הזה
+
+השרת מריץ כבר את `api.getdirekto.com` דרך **Caddy של המארח** על 80/443.
+במקום לעצור אותו, ה-stack שלנו רץ בלי Caddy משלו (`docker-compose.host-proxy.yml`)
+והאפליקציה מאזינה על `127.0.0.1:3000` בלבד. ל-Caddy של המארח נוסף בלוק אחד
+(`deploy/host-caddy.snippet`).
+
+### עדכון גרסה
+
+בנייה על השרת **קורסת מחוסר זיכרון** (ליבה אחת, 1GB). בונים על מכונת פיתוח ושולחים:
+
+```bash
+cd project-skeleton
+TAG=$(git rev-parse --short HEAD)
+docker buildx build --platform linux/amd64 --target runtime -t craftmind-app:$TAG --load .
+docker save craftmind-app:$TAG | gzip -1 | ssh root@164.90.161.15 'gunzip | docker load'
+ssh root@164.90.161.15 "cd /opt/craftmind && sed -i 's/^APP_IMAGE_TAG=.*/APP_IMAGE_TAG=$TAG/' .env && \
+  docker compose -f docker-compose.yml -f docker-compose.host-proxy.yml up -d"
+```
+
+המיגרציות רצות אוטומטית לפני שהאפליקציה עולה. מיגרציה שנכשלה משאירה את הגרסה הקודמת.
+
+### גיבויים
+
+`scripts/backup-db.sh` רץ ב-cron כל לילה ב-03:17, שומר 14 יום ב-`/opt/craftmind/backups`,
+ומוודא שכל קובץ קריא (`pg_restore --list`) לפני שהוא נחשב גיבוי. יומן: `backups/backup.log`.
+
+⚠️ **הגיבויים יושבים על אותו שרת.** אם ה-Droplet נמחק, הם נמחקים איתו. יש להפעיל
+את Backups של DigitalOcean או להעתיק לאחסון חיצוני.
+
+שחזור:
+
+```bash
+docker exec -i -e PGPASSWORD=... craftmind-postgres-1 pg_restore -U postgres -d craftmind --clean --if-exists < backups/craftmind-XXXX.dump
+```

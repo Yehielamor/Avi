@@ -4,6 +4,7 @@ import { ClipboardList } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { EquipmentCard } from './equipment-card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -114,6 +115,8 @@ export function CustomerDetailPage() {
           </dl>
         </CardContent>
       </Card>
+
+      <EquipmentCard customerId={customerId} />
 
       <Card>
         <CardHeader>

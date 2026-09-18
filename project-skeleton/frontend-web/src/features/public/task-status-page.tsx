@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { Button, Skeleton, Textarea } from '@/components/ui';
 import { ApiError, request } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { PublicShell } from './public-shell';
 
 /* ---------------------------------------------------------------------------
    הדף שהלקוח פותח מתוך WhatsApp.
@@ -70,18 +71,18 @@ export function TaskStatusPage() {
 
   if (view.isLoading) {
     return (
-      <Shell>
+      <PublicShell>
         <Skeleton className="h-6 w-40" />
         <Skeleton className="mt-6 h-28 w-full" />
         <Skeleton className="mt-4 h-12 w-full" />
-      </Shell>
+      </PublicShell>
     );
   }
 
   if (view.isError || !view.data) {
     const expired = view.error instanceof ApiError && view.error.status === 404;
     return (
-      <Shell>
+      <PublicShell>
         <div className="py-10 text-center">
           <XCircle className="mx-auto size-10 text-fg-subtle" aria-hidden />
           <h1 className="mt-3 text-lg font-semibold text-fg">
@@ -91,7 +92,7 @@ export function TaskStatusPage() {
             {expired ? 'ייתכן שנשלח קישור חדש יותר. אפשר לבקש מבעל העסק לשלוח שוב.' : 'נסו לרענן בעוד רגע.'}
           </p>
         </div>
-      </Shell>
+      </PublicShell>
     );
   }
 
@@ -100,7 +101,7 @@ export function TaskStatusPage() {
   const actionError = confirm.error ?? reschedule.error;
 
   return (
-    <Shell business={v.businessName}>
+    <PublicShell business={v.businessName}>
       <h1 className="text-xl font-semibold leading-snug text-fg">{v.title}</h1>
 
       {v.status === 'cancelled' ? (
@@ -209,20 +210,6 @@ export function TaskStatusPage() {
             : 'הפעולה לא הצליחה. נסו לרענן את הדף.'}
         </p>
       ) : null}
-    </Shell>
-  );
-}
-
-function Shell({ business, children }: { business?: string; children: React.ReactNode }) {
-  return (
-    <div dir="rtl" className="min-h-dvh bg-canvas">
-      <header className="border-b border-border bg-surface">
-        <div className="mx-auto max-w-md px-5 py-4">
-          <p className="text-base font-semibold text-fg">{business ?? ' '}</p>
-        </div>
-      </header>
-      <main className="mx-auto max-w-md px-5 py-6">{children}</main>
-      <footer className="mx-auto max-w-md px-5 pb-8 text-center text-2xs text-fg-subtle">מופעל ע״י CraftMind</footer>
-    </div>
+    </PublicShell>
   );
 }

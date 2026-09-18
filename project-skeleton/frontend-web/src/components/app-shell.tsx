@@ -1,5 +1,6 @@
 import { Link, useRouterState } from '@tanstack/react-router';
 import {
+  BellRing,
   Boxes,
   ClipboardList,
   FileText,
@@ -30,6 +31,7 @@ const NAV: NavItem[] = [
   { to: '/', label: 'סקירה', icon: LayoutDashboard },
   { to: '/tasks', label: 'משימות', icon: ClipboardList },
   { to: '/customers', label: 'לקוחות', icon: Users },
+  { to: '/maintenance', label: 'מגיע לטיפול', icon: BellRing, roles: ['OWNER', 'MANAGER'] },
   { to: '/inventory', label: 'מלאי', icon: Boxes, roles: ['OWNER', 'MANAGER'] },
   { to: '/price-list', label: 'מחירון', icon: Tag, roles: ['OWNER', 'MANAGER'] },
   { to: '/invoices', label: 'חשבוניות', icon: FileText, roles: ['OWNER', 'MANAGER'] },

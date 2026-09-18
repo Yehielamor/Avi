@@ -35,6 +35,7 @@ import { PublicLinksModule } from './modules/public-links/public-links.module';
 import { TaskStatusModule } from './modules/task-status/task-status.module';
 import { EquipmentModule } from './modules/equipment/equipment.module';
 import { QuotesModule } from './modules/quotes/quotes.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 
 /**
@@ -127,6 +128,7 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
     TaskStatusModule,
     EquipmentModule,
     QuotesModule,
+    ReportsModule,
     OnboardingModule,
 
     // נטען אחרון: הוא מייבא את מודולי הדומיין שלמעלה, והעובדים

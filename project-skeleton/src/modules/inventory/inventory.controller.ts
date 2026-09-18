@@ -15,6 +15,7 @@ import { InventoryService } from './inventory.service';
 import { CreateInventoryItemDto } from './dto/create-inventory-item.dto';
 import { AdjustQuantityDto } from './dto/adjust-quantity.dto';
 import { ListInventoryQueryDto } from './dto/list-inventory.query.dto';
+import { SetCostDto } from './dto/set-cost.dto';
 import { AnyRole, Roles } from '../../common/decorators/roles.decorator';
 
 @Controller('inventory')
@@ -52,5 +53,11 @@ export class InventoryController {
       note: body.note,
       actorUserId: req.user?.id,
     });
+  }
+
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
+  @Patch(':id/cost')
+  setCost(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: SetCostDto) {
+    return this.inventoryService.setCost(req.tenantId!, id, body.unitCost ?? null, req.user?.id);
   }
 }

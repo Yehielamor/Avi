@@ -67,4 +67,28 @@ describe('aggregate', () => {
       ['ניקוי', 2, '400.00'],
     ]);
   });
+
+  it('keeps two different people with the same name apart, grouping by id (QA F6)', () => {
+    const lines = aggregate(
+      [
+        fact({ customerId: 'c1', customer: 'משה כהן', billed: D('1000') }),
+        fact({ customerId: 'c2', customer: 'משה כהן', billed: D('200') }),
+        fact({ customerId: 'c1', customer: 'משה כהן', billed: D('50') }),
+      ],
+      (f) => ({ id: f.customerId!, label: f.customer }),
+    );
+    expect(lines.map((l) => [l.id, l.key, l.jobs, l.revenue])).toEqual([
+      ['c1', 'משה כהן', 2, '1050.00'],
+      ['c2', 'משה כהן', 1, '200.00'],
+    ]);
+  });
+
+  it('groups rows without an id by their label, with a null id', () => {
+    const lines = aggregate(
+      [fact({ technicianId: null, technician: null }), fact({ technicianId: null, technician: null })],
+      (f) => ({ id: f.technicianId ?? null, label: f.technician ?? 'לא שויך' }),
+    );
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ id: null, key: 'לא שויך', jobs: 2 });
+  });
 });

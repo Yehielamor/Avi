@@ -128,6 +128,28 @@ describe('ReportsService.profitability', () => {
     expect(r.total).toMatchObject({ jobs: 1, revenue: '100.00' });
   });
 
+  it('gives two different customers and technicians with the same name their own rows (QA F6)', async () => {
+    const first = await closedTask('2026-09-10T09:00:00Z', { billed: '1000' });
+    const second = await closedTask('2026-09-11T09:00:00Z', { billed: '200' });
+    const twinCustomer = (await privileged.customer.create({ data: { tenantId: A, name: 'מסעדה' } })).id;
+    const twinTech = (
+      await privileged.user.create({ data: { tenantId: A, email: 't2@r.test', passwordHash: 'x', name: 'יוסי', role: 'FIELD' } })
+    ).id;
+    await privileged.task.update({ where: { id: second }, data: { customerId: twinCustomer, assignedToUserId: twinTech } });
+
+    const r = await service.profitability(A, '2026-09-01', '2026-09-30');
+    expect(r.byCustomer.map((l) => [l.id, l.key, l.revenue])).toEqual([
+      [customer, 'מסעדה', '1000.00'],
+      [twinCustomer, 'מסעדה', '200.00'],
+    ]);
+    expect(r.byTechnician.map((l) => [l.id, l.key, l.jobs])).toEqual([
+      [tech, 'יוסי', 1],
+      [twinTech, 'יוסי', 1],
+    ]);
+    expect(r.total).toMatchObject({ id: null, jobs: 2 });
+    expect(first).toBeDefined();
+  });
+
   it('returns no total for an empty period', async () => {
     expect((await service.profitability(A, '2026-01-01', '2026-01-31')).total).toBeNull();
   });

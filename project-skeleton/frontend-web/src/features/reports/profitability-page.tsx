@@ -17,7 +17,10 @@ import { cn, formatCurrency, formatNumber } from '@/lib/utils';
    --------------------------------------------------------------------------- */
 
 const lineSchema = z.object({
+  /** השם לתצוגה. */
   key: z.string(),
+  /** מזהה הלקוח/הטכנאי/סוג העבודה. שני לקוחות באותו שם הם שתי שורות עם id שונה. */
+  id: z.string().nullable().optional(),
   jobs: z.number().int(),
   revenue: z.string(),
   partsCost: z.string(),
@@ -198,7 +201,7 @@ function BreakdownTable({ lines }: { lines: Line[] }) {
         {lines.map((l) => {
           const loss = Number(l.grossProfit) < 0;
           return (
-            <tr key={l.key}>
+            <tr key={l.id ?? `label:${l.key}`}>
               <td className="px-4 py-2.5 text-fg">
                 {l.key}{' '}
                 {l.partial ? (

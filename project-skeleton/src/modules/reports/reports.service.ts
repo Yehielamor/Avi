@@ -15,8 +15,11 @@ const TOP_CUSTOMERS = 20;
 type Row = {
   taskId: string;
   checklist: unknown;
+  jobTypeId: string | null;
   jobType: string | null;
+  technicianId: string | null;
   technician: string | null;
+  customerId: string;
   customer: string;
   billed: Prisma.Decimal | null;
   partsCost: Prisma.Decimal;
@@ -46,7 +49,9 @@ export class ReportsService {
 
     return this.prisma.forTenant(tenantId, async (tx) => {
       const rows = await tx.$queryRaw<Row[]>`
-        SELECT t.id AS "taskId", t.checklist, jt.name AS "jobType", u.name AS technician, c.name AS customer,
+        SELECT t.id AS "taskId", t.checklist,
+          jt.id AS "jobTypeId", jt.name AS "jobType", u.id AS "technicianId", u.name AS technician,
+          c.id AS "customerId", c.name AS customer,
           (SELECT SUM(li.amount) FROM invoice_line_items li WHERE li."taskId" = t.id) AS billed,
           (SELECT COALESCE(SUM(-sm.delta * ii."unitCost"), 0)
              FROM stock_movements sm JOIN inventory_items ii ON ii.id = sm."inventoryItemId"
@@ -73,8 +78,11 @@ export class ReportsService {
 
       const facts: TaskFacts[] = rows.map((r) => ({
         taskId: r.taskId,
+        jobTypeId: r.jobTypeId,
         jobType: r.jobType,
+        technicianId: r.technicianId,
         technician: r.technician,
+        customerId: r.customerId,
         customer: r.customer,
         billed: r.billed === null ? null : new Prisma.Decimal(r.billed),
         estimated: estimateFromChecklist(r.checklist, priceOf),
@@ -88,9 +96,10 @@ export class ReportsService {
         to,
         truncated: rows.length === MAX_TASKS,
         total: total ?? null,
-        byJobType: aggregate(facts, (f) => f.jobType ?? 'ללא סוג עבודה'),
-        byTechnician: aggregate(facts, (f) => f.technician ?? 'לא שויך'),
-        byCustomer: aggregate(facts, (f) => f.customer).slice(0, TOP_CUSTOMERS),
+        // לפי מזהה, עם השם כתווית: שני אנשים שונים באותו שם הם שתי שורות.
+        byJobType: aggregate(facts, (f) => ({ id: f.jobTypeId ?? null, label: f.jobType ?? 'ללא סוג עבודה' })),
+        byTechnician: aggregate(facts, (f) => ({ id: f.technicianId ?? null, label: f.technician ?? 'לא שויך' })),
+        byCustomer: aggregate(facts, (f) => ({ id: f.customerId ?? null, label: f.customer })).slice(0, TOP_CUSTOMERS),
       };
     });
   }

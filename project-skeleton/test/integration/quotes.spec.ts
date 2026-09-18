@@ -88,6 +88,20 @@ describe('QuotesService', () => {
     await expect(service.create(A, { customerId, priceCodes: codes }, actor)).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('answers a total larger than Decimal(12,2) with 400, not a DB overflow (QA F13)', async () => {
+    await privileged.priceListItem.create({
+      data: { tenantId: A, code: 'HUGE', description: 'ענק', price: new Prisma.Decimal('9999999999.99') },
+    });
+    await expect(service.create(A, { customerId, priceCodes: ['HUGE', 'INSTALL'] }, actor)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(await privileged.quote.count({ where: { tenantId: A } })).toBe(0);
+    // בדיוק המקסימום עדיין מותר.
+    await expect(service.create(A, { customerId, priceCodes: ['HUGE'] }, actor)).resolves.toMatchObject({
+      quoteNumber: 1,
+    });
+  });
+
   it('keeps the sent price even after the price list changes', async () => {
     const { token } = await createAndSend();
     await privileged.priceListItem.updateMany({ where: { tenantId: A, code: 'INSTALL' }, data: { price: new Prisma.Decimal('9999') } });

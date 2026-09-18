@@ -10,6 +10,8 @@ import type { CreateQuoteDto } from './dto/create-quote.dto';
 type Tx = Prisma.TransactionClient;
 
 const DEFAULT_VALID_DAYS = 30;
+/** הגדול ביותר ש-`Decimal(12, 2)` (quotes.totalAmount) מחזיק. */
+const MAX_AMOUNT = new Prisma.Decimal('9999999999.99');
 
 /** מפתח נעילה לטננט, במרחב נפרד מזה של החשבוניות (FNV-1a 32-bit). */
 function quoteLockKey(tenantId: string): bigint {
@@ -79,6 +81,11 @@ export class QuotesService {
       });
       // Decimal מתחילתו ועד סופו (קונבנציות, סעיף 4).
       const totalAmount = lines.reduce((sum, l) => sum.add(l.amount), new Prisma.Decimal(0));
+      // כל מחיר בודד תקין (PRICE_PATTERN), אבל הסכום של כמה מהם יכול לחרוג
+      // מהעמודה — ואז Postgres נופל ב-numeric overflow וזה 500 (QA 18.09, F13).
+      if (totalAmount.greaterThan(MAX_AMOUNT)) {
+        throw new BadRequestException('The quote total is larger than the maximum amount (9,999,999,999.99)');
+      }
 
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${quoteLockKey(tenantId)}::bigint)`;
       const rows = await tx.$queryRaw<Array<{ next: bigint }>>`

@@ -33,6 +33,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { PriceListModule } from './modules/price-list/price-list.module';
 import { PublicLinksModule } from './modules/public-links/public-links.module';
 import { TaskStatusModule } from './modules/task-status/task-status.module';
+import { EquipmentModule } from './modules/equipment/equipment.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 
 /**
@@ -123,6 +124,7 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
     PriceListModule,
     PublicLinksModule,
     TaskStatusModule,
+    EquipmentModule,
     OnboardingModule,
 
     // נטען אחרון: הוא מייבא את מודולי הדומיין שלמעלה, והעובדים

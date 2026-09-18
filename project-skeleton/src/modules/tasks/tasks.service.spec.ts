@@ -33,6 +33,7 @@ describe('TasksService', () => {
     jobTypeTemplate: { findFirst: jest.Mock };
     auditLog: { create: jest.Mock };
     outboxEvent: { create: jest.Mock };
+    $executeRaw: jest.Mock;
   };
   let forTenant: jest.Mock;
   let service: TasksService;
@@ -63,6 +64,7 @@ describe('TasksService', () => {
       },
       auditLog: { create: traced('audit.create', () => ({ id: 'audit-1' })) },
       outboxEvent: { create: traced('outbox.create', () => ({ id: 'outbox-1' })) },
+      $executeRaw: traced('equipment.markServiced', () => 0),
     };
 
     forTenant = jest.fn(async (_tenantId: string, fn: (c: TenantClient) => Promise<unknown>) => {
@@ -270,7 +272,8 @@ describe('TasksService', () => {
       // זו כל הנקודה של ה-outbox: אירוע שנכתב אחרי ה-commit יכול
       // להיכתב על סגירה שלא התרחשה, או להיעלם כשהסגירה כן התרחשה.
       await service.close(TENANT, TASK, undefined, ACTOR);
-      expect(log).toEqual(['BEGIN', 'task.updateMany', 'audit.create', 'outbox.create', 'COMMIT']);
+      // עדכון "טופל לאחרונה" של הציוד — גם הוא בתוך אותה טרנזקציה.
+      expect(log).toEqual(['BEGIN', 'task.updateMany', 'audit.create', 'equipment.markServiced', 'outbox.create', 'COMMIT']);
       expect(forTenant).toHaveBeenCalledTimes(1);
     });
 
@@ -286,6 +289,11 @@ describe('TasksService', () => {
           status: TaskStatus.CLOSED,
           alreadyClosed: true,
         });
+      });
+
+      it('does not touch equipment on a repeated close', async () => {
+        await service.close(TENANT, TASK, undefined, ACTOR);
+        expect(tx.$executeRaw).not.toHaveBeenCalled();
       });
 
       it('writes no second outbox event', async () => {

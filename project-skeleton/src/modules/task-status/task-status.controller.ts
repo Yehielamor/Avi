@@ -5,6 +5,7 @@ import type { Request } from 'express';
 
 import { Public } from '../../common/decorators/public.decorator';
 import { AnyRole, Roles } from '../../common/decorators/roles.decorator';
+import { PUBLIC_ACTION_THROTTLE, PUBLIC_VIEW_THROTTLE } from '../../common/throttle';
 
 import { RescheduleRequestDto } from './dto/reschedule-request.dto';
 import { ScheduleTaskDto } from './dto/schedule-task.dto';
@@ -43,19 +44,19 @@ export class TaskStatusController {
 export class PublicTaskStatusController {
   constructor(private readonly status: TaskStatusService) {}
 
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle(PUBLIC_VIEW_THROTTLE)
   @Get(':token')
   view(@Param('token') token: string) {
     return this.status.view(token);
   }
 
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle(PUBLIC_ACTION_THROTTLE)
   @Post(':token/confirm')
   confirm(@Param('token') token: string) {
     return this.status.confirm(token);
   }
 
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle(PUBLIC_ACTION_THROTTLE)
   @Post(':token/reschedule')
   reschedule(@Param('token') token: string, @Body() body: RescheduleRequestDto) {
     return this.status.requestReschedule(token, body.note);

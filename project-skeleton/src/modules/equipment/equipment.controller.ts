@@ -5,6 +5,7 @@ import type { Request } from 'express';
 
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { PUBLIC_ACTION_THROTTLE, PUBLIC_VIEW_THROTTLE } from '../../common/throttle';
 
 import { BookingRequestDto, CreateEquipmentDto, DueQueryDto, UpdateEquipmentDto } from './dto/equipment.dto';
 import { EquipmentService } from './equipment.service';
@@ -53,13 +54,13 @@ export class EquipmentController {
 export class PublicBookingController {
   constructor(private readonly equipment: EquipmentService) {}
 
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle(PUBLIC_VIEW_THROTTLE)
   @Get(':token')
   view(@Param('token') token: string) {
     return this.equipment.bookingView(token);
   }
 
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle(PUBLIC_ACTION_THROTTLE)
   @Post(':token')
   book(@Param('token') token: string, @Body() body: BookingRequestDto) {
     return this.equipment.book(token, body);

@@ -5,6 +5,7 @@ import type { Request } from 'express';
 
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { PUBLIC_ACTION_THROTTLE, PUBLIC_VIEW_THROTTLE } from '../../common/throttle';
 
 import { CreateQuoteDto } from './dto/create-quote.dto';
 import { QuotesService } from './quotes.service';
@@ -43,19 +44,19 @@ export class QuotesController {
 export class PublicQuoteController {
   constructor(private readonly quotes: QuotesService) {}
 
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle(PUBLIC_VIEW_THROTTLE)
   @Get(':token')
   view(@Param('token') token: string) {
     return this.quotes.publicView(token);
   }
 
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle(PUBLIC_ACTION_THROTTLE)
   @Post(':token/approve')
   approve(@Param('token') token: string) {
     return this.quotes.approve(token);
   }
 
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle(PUBLIC_ACTION_THROTTLE)
   @Post(':token/decline')
   decline(@Param('token') token: string) {
     return this.quotes.decline(token);

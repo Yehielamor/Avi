@@ -16,6 +16,7 @@ import { WorkerModule } from './queue/worker.module';
 import { TenantContextMiddleware } from './common/tenant-context.middleware';
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { RolesGuard } from './common/guards/roles.guard';
+import { THROTTLERS } from './common/throttle';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 
 import { TenantsModule } from './modules/tenants/tenants.module';
@@ -97,11 +98,8 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
     // הגבלת קצב גלובלית. קודם לא הייתה בכלל: /auth/login היה פתוח
     // ל-credential stuffing בלתי מוגבל, ו-bcrypt בעלות 12 הפך את זה
     // גם ל-DoS זול על ה-CPU. ראו docs/10-audit-findings.md#I2.
-    ThrottlerModule.forRoot([
-      { name: 'short', ttl: 1_000, limit: 20 },
-      { name: 'medium', ttl: 60_000, limit: 200 },
-      { name: 'long', ttl: 3_600_000, limit: 2_000 },
-    ]),
+    // השמות מוגדרים ב-common/throttle.ts: דריסה per-route חייבת להשתמש בהם.
+    ThrottlerModule.forRoot(THROTTLERS),
 
     EventEmitterModule.forRoot(),
 

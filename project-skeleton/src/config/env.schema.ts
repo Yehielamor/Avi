@@ -41,6 +41,9 @@ export const envSchema = z
     BASE_DOMAIN: z.string().min(1),
     CORS_ORIGINS: z.string().default('').transform(csv),
 
+    // הכתובת שבה הלקוח פותח קישור ציבורי (/c/...). נכנסת להודעות WhatsApp.
+    PUBLIC_APP_URL: z.string().url().default('https://craftmind-ai.com'),
+
     // --- Database ---
     // DATABASE_URL חייב להיות תפקיד ה-app. אם מישהו מדביק כאן בטעות
     // את ה-migrator, ה-RLS מושבת לחלוטין — ובלי הבדיקה הזו, בשקט.

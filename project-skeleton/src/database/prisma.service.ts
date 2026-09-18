@@ -113,6 +113,20 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   /**
+   * hash של טוקן ציבורי -> tenantId.
+   *
+   * כמו resolveTenantBySubdomain: רצה בלי קונטקסט כי היא זו שמייצרת אותו,
+   * דרך פונקציית SECURITY DEFINER שמחזירה עמודה אחת לקישור בתוקף בלבד
+   * (מיגרציה 0006). null לכל מקרה אחר — פג, בוטל, לא קיים — בלי להבחין.
+   */
+  async resolveTenantByPublicLink(tokenHash: string): Promise<string | null> {
+    const rows = await this.$queryRaw<Array<{ tenant_id: string | null }>>`
+      SELECT public.resolve_public_link(${tokenHash}) AS tenant_id
+    `;
+    return rows[0]?.tenant_id ?? null;
+  }
+
+  /**
    * ה-Proxy שהקונסטרוקטור של PrismaClient מחזיר.
    *
    * נקבע ע"י ה-factory ב-DatabaseModule. ראו `untenanted`.

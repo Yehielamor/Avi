@@ -10,6 +10,7 @@
 # משתני VITE_* נצרבים ל-bundle ולכן ציבוריים ממילא — אין בהם סוד,
 # והם חייבים להיות בגיט כדי ש-Vercel יבנה איתם.
 !**/.env.production
+!**/.env.selfhost
 *.pem
 *.key
 !**/*.key.example

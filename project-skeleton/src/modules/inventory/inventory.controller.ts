@@ -58,6 +58,6 @@ export class InventoryController {
   @Roles(UserRole.OWNER, UserRole.MANAGER)
   @Patch(':id/cost')
   setCost(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: SetCostDto) {
-    return this.inventoryService.setCost(req.tenantId!, id, body.unitCost ?? null, req.user?.id);
+    return this.inventoryService.setCost(req.tenantId!, id, body.unitCost, req.user?.id);
   }
 }

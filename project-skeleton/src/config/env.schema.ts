@@ -131,19 +131,25 @@ export const envSchema = z
           message: 'CORS_ORIGINS must be set explicitly in production.',
         });
       }
-      for (const [key, value] of Object.entries({
+      // Google הוא קבוצה אחת: או שלושתם, או אף אחד. אף אחד = חיבור
+      // Gmail/Drive כבוי, והשרת עולה — אחרת כל פריסה נחסמת עד שיש
+      // אפליקציית OAuth מאושרת. חלקי או placeholder = שגיאה, כי הוא
+      // נראה מוגדר ונכשל רק בקריאה הראשונה, עמוק בתוך זרימת משתמש.
+      const google = {
         GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID,
         GOOGLE_CLIENT_SECRET: env.GOOGLE_CLIENT_SECRET,
         GOOGLE_REDIRECT_URI: env.GOOGLE_REDIRECT_URI,
-      })) {
-        // placeholder נחשב חסר. הוא נראה מוגדר ונכשל רק בקריאה
-        // הראשונה, עמוק בתוך זרימת משתמש.
-        if (!value || /placeholder|replace_with|your[-_]/i.test(value)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [key],
-            message: `${key} is required in production.`,
-          });
+      };
+      const anyGoogle = Object.values(google).some((v) => v !== '');
+      if (anyGoogle) {
+        for (const [key, value] of Object.entries(google)) {
+          if (!value || /placeholder|replace_with|your[-_]/i.test(value)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: [key],
+              message: `${key} is missing or a placeholder. Set all three GOOGLE_* variables, or none to disable Google.`,
+            });
+          }
         }
       }
     }

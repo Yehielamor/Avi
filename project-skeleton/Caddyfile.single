@@ -1,0 +1,44 @@
+# =============================================================================
+# CraftMind AI — reverse proxy, מארח יחיד.
+#
+# לדומיין שה-DNS שלו אינו ב-Cloudflare (למשל GoDaddy). במקום wildcard
+# ל-*.{domain}, שדורש DNS-01 ואינטגרציה עם ספק ה-DNS, יש כאן כתובת אחת:
+# api.{domain}, עם תעודה רגילה ב-HTTP-01. בלי token, בלי plugin.
+#
+# זה עובד כי הממשק יושב ב-Vercel ושולח את הטננט בכותרת X-Tenant (ראו
+# tenant-context.middleware.ts), ולא בתת-דומיין. כשיהיה צורך בתת-דומיין
+# לכל לקוח — מעבירים את ה-DNS ל-Cloudflare וחוזרים ל-Caddyfile הראשי.
+# =============================================================================
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$API_DOMAIN} {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options    "nosniff"
+		X-Frame-Options           "DENY"
+		Referrer-Policy           "no-referrer"
+		Cross-Origin-Opener-Policy "same-origin"
+		-Server
+		-X-Powered-By
+	}
+
+	request_body {
+		max_size 25MB
+	}
+
+	# /health ל-Docker בלבד, לא לעולם.
+	@health path /v1/health/*
+	respond @health 404
+
+	reverse_proxy app:3000 {
+		health_uri      /v1/health/live
+		health_interval 15s
+		health_timeout  5s
+		header_up X-Real-IP       {http.request.remote.host}
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto {http.request.scheme}
+	}
+}

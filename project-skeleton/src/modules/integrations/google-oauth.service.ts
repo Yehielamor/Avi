@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { google } from 'googleapis';
 
@@ -46,7 +46,17 @@ export class GoogleOAuthService {
     );
   }
 
+  /** שלושת משתני GOOGLE_* מוגדרים. env.schema אוכף הכל-או-כלום. */
+  isConfigured(): boolean {
+    return Boolean(this.config.get<string>('GOOGLE_CLIENT_ID'));
+  }
+
   buildAuthUrl(state: string): string {
+    // בלי client_id, גוגל מציג למשתמש דף שגיאה משלו ("invalid_client")
+    // אחרי שכבר עזב את האפליקציה. 503 כאן אומר למפעיל מה חסר.
+    if (!this.isConfigured()) {
+      throw new ServiceUnavailableException('Google integration is not configured on this server.');
+    }
     const client = this.createClient();
     return client.generateAuthUrl({
       access_type: 'offline', // חובה כדי לקבל refresh_token

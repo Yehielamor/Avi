@@ -1,0 +1,19 @@
+# =============================================================================
+# שכבת-על לפריסה על מארח יחיד (api.{domain}) — ראו Caddyfile.single.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.single-host.yml up -d --build
+#
+# מחליפה את Caddy המותאם (עם plugin של Cloudflare) ב-image הרשמי, ומבטלת
+# את הדרישה ל-BASE_DOMAIN ו-CLOUDFLARE_API_TOKEN.
+# =============================================================================
+services:
+  caddy:
+    build: !reset null
+    image: caddy:2.10-alpine
+    volumes: !override
+      - ./Caddyfile.single:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment: !override
+      API_DOMAIN: ${API_DOMAIN:?API_DOMAIN is required, e.g. api.example.com}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required for Let's Encrypt notices}

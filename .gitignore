@@ -42,3 +42,4 @@ Thumbs.db
 *.log
 npm-debug.log*
 logs/
+!**/.env.development

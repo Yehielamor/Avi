@@ -13,3 +13,5 @@ coverage/
 .idea/
 .vscode/
 prisma/*.db
+!frontend-web/.env.development
+!frontend-pwa/.env.development

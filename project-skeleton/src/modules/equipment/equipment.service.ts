@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma, PublicLinkPurpose, TaskSource, TaskStatus } from '@prisma/client';
 
 import { buildWaLink } from '../../common/phone.util';
+import { isCalendarDate } from '../../common/validation/calendar-date';
 import { PrismaService } from '../../database/prisma.service';
 import { PublicLinkService } from '../public-links/public-link.service';
 
@@ -233,8 +234,8 @@ export class EquipmentService {
     const max = addDays(today, MAX_BOOKING_DAYS_AHEAD);
     for (const w of dto.windows) {
       // השוואת מחרוזות YYYY-MM-DD היא השוואת תאריכים. תאריך לא קיים
-      // (2026-02-30) נתפס כי Date מגלגל אותו לתאריך אחר.
-      if (w.date < min || w.date > max || new Date(`${w.date}T12:00:00Z`).toISOString().slice(0, 10) !== w.date) {
+      // (2026-02-30, 2026-10-32) נדחה כבר ב-DTO; הבדיקה כאן לקוראים ישירים.
+      if (!isCalendarDate(w.date) || w.date < min || w.date > max) {
         throw new BadRequestException('Please choose dates within the next two months');
       }
     }
@@ -281,6 +282,7 @@ export class EquipmentService {
 
   /** תאריך טיפול קודם — לא בעתיד. תאריך עתידי היה מסתיר את הציוד מהרשימה לחודשים. */
   private pastDate(isoDate: string): Date {
+    if (!isCalendarDate(isoDate)) throw new BadRequestException('lastServicedOn must be a real date in YYYY-MM-DD format');
     if (isoDate > israelToday()) throw new BadRequestException('Last service date cannot be in the future');
     return new Date(`${isoDate}T12:00:00Z`);
   }

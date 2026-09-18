@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 
 import { estimateFromChecklist } from '../../common/checklist-estimate';
+import { isCalendarDate } from '../../common/validation/calendar-date';
 
 import { aggregate, type TaskFacts } from './profitability';
 
@@ -34,6 +35,11 @@ export class ReportsService {
    * בלי עלות מסמן את השורה כחלקית ולא נספר כאפס.
    */
   async profitability(tenantId: string, from: string, to: string) {
+    // ה-DTO כבר דוחה תאריך לא קיים; כאן לקוראים ישירים. `Date.parse` מגלגל
+    // 2026-02-30 ל-2 במרץ, ואז `::date` ב-SQL נופל כ-500 (QA 18.09, F4).
+    if (!isCalendarDate(from) || !isCalendarDate(to)) {
+      throw new BadRequestException('"from" and "to" must be real dates in YYYY-MM-DD format');
+    }
     const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000;
     if (!Number.isFinite(days) || days < 0) throw new BadRequestException('"to" must be on or after "from"');
     if (days > MAX_RANGE_DAYS) throw new BadRequestException('The range can be at most one year');

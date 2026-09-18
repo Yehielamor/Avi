@@ -1,4 +1,4 @@
-import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
+import { Logger, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -10,6 +10,7 @@ import { json, urlencoded } from 'express';
 
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { buildGlobalPipes } from './common/validation/global-pipes';
 import type { AppEnv } from './config/env.schema';
 import { SESSION_SECRET_HEADER } from './modules/onboarding/dto/onboarding.dto';
 
@@ -102,20 +103,9 @@ async function bootstrap(): Promise<void> {
   });
 
   // --- Validation ----------------------------------------------------------
-  // whitelist + forbidNonWhitelisted הם מה שחוסם את
-  // `POST /auth/register {"role":"OWNER"}` — שדה שאינו ב-DTO נדחה
-  // ב-400 במקום להגיע ל-prisma.create. ראו docs/10-audit-findings.md#I2.
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      transformOptions: { enableImplicitConversion: false },
-      // בפרודקשן לא מחזירים את הערך שנכשל — הוא עלול להכיל סוד.
-      disableErrorMessages: false,
-      validationError: { target: false, value: !isProd },
-    }),
-  );
+  // ראו common/validation/global-pipes.ts: דחיית NUL, ואז ValidationPipe עם
+  // whitelist + forbidNonWhitelisted.
+  app.useGlobalPipes(...buildGlobalPipes(isProd));
 
   app.useGlobalFilters(new AllExceptionsFilter(isProd));
 

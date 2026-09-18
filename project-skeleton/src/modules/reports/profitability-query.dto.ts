@@ -1,10 +1,10 @@
-import { Matches } from 'class-validator';
+import { IsCalendarDate } from '../../common/validation/calendar-date';
 
 export class ProfitabilityQueryDto {
-  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsCalendarDate()
   from!: string;
 
   /** כולל. */
-  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsCalendarDate()
   to!: string;
 }

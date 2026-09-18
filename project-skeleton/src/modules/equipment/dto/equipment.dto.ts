@@ -9,11 +9,12 @@ import {
   IsOptional,
   IsString,
   Length,
-  Matches,
   Max,
   Min,
   ValidateNested,
 } from 'class-validator';
+
+import { IsCalendarDate } from '../../../common/validation/calendar-date';
 
 export class CreateEquipmentDto {
   @IsString()
@@ -39,7 +40,7 @@ export class CreateEquipmentDto {
 
   /** לציוד קיים שכבר טופל — אחרת הוא מופיע מיד כ"מגיע לטיפול". */
   @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsCalendarDate()
   lastServicedOn?: string;
 }
 
@@ -49,7 +50,7 @@ export class UpdateEquipmentDto {
   @IsOptional() @IsString() @Length(1, 100) location?: string;
   @IsOptional() @IsInt() @Min(1) @Max(60) serviceIntervalMonths?: number;
   @IsOptional() @IsBoolean() isActive?: boolean;
-  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/) lastServicedOn?: string;
+  @IsOptional() @IsCalendarDate() lastServicedOn?: string;
 }
 
 export class DueQueryDto {
@@ -65,7 +66,7 @@ export const DAY_PARTS = ['morning', 'noon', 'evening'] as const;
 export type DayPart = (typeof DAY_PARTS)[number];
 
 export class BookingWindowDto {
-  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsCalendarDate()
   date!: string;
 
   @IsIn(DAY_PARTS)

@@ -140,6 +140,14 @@ describe('QuotesService', () => {
     expect(await privileged.task.count({ where: { tenantId: A } })).toBe(0);
   });
 
+  it('cannot decline an expired quote either, and it stays EXPIRED (QA F12)', async () => {
+    const { quote, token } = await createAndSend();
+    await privileged.quote.update({ where: { id: quote.id }, data: { validUntil: new Date(Date.now() - 1000) } });
+    await expect(service.decline(token)).rejects.toBeInstanceOf(ConflictException);
+    expect((await privileged.quote.findUniqueOrThrow({ where: { id: quote.id } })).status).toBe('SENT');
+    expect((await service.publicView(token)).status).toBe('EXPIRED');
+  });
+
   it('cannot approve after declining', async () => {
     const { token } = await createAndSend();
     await service.decline(token);

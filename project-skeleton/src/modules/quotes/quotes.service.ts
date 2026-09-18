@@ -247,9 +247,12 @@ export class QuotesService {
   async decline(token: string) {
     const { tenantId, link } = await this.links.resolve(token, PublicLinkPurpose.QUOTE);
     await this.prisma.forTenant(tenantId, async (tx) => {
+      // כמו ב-approve: הצעה שפג תוקפה סגורה לשני הכיוונים. הדף כבר מציג
+      // canRespond:false, והשרת לא אמור לקבל מה שהדף לא מציע (QA 18.09, F12).
+      const now = new Date();
       const { count } = await tx.quote.updateMany({
-        where: { id: link.quoteId!, tenantId, status: QuoteStatus.SENT },
-        data: { status: QuoteStatus.DECLINED, declinedAt: new Date() },
+        where: { id: link.quoteId!, tenantId, status: QuoteStatus.SENT, validUntil: { gt: now } },
+        data: { status: QuoteStatus.DECLINED, declinedAt: now },
       });
       if (count === 0) throw new ConflictException('This quote can no longer be declined');
       await this.audit(tx, tenantId, null, 'quote.declined', link.quoteId!, { via: 'public_link' });

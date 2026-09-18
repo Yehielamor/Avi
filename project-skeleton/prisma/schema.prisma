@@ -145,6 +145,7 @@ model Tenant {
   equipment        Equipment[]
   quotes           Quote[]
   quoteLines       QuoteLine[]
+  activityDays     ActivityDay[]
 
   @@map("tenants")
 }
@@ -228,6 +229,7 @@ model User {
   auditLogs             AuditLog[]
   connectedIntegrations TenantIntegration[]
   stockMovements        StockMovement[]
+  activityDays          ActivityDay[]
 
   @@unique([tenantId, email])
   @@index([tenantId, role, isActive])
@@ -820,4 +822,19 @@ model QuoteLine {
 
   @@index([quoteId])
   @@map("quote_lines")
+}
+
+/// יום שבו משתמש פתח את תדריך הבוקר. שורה אחת ליום — הבסיס למדידת שימור
+/// (האם בעל העסק חוזר ביום 8 וביום 30), בלי כלי אנליטיקה חיצוני.
+model ActivityDay {
+  tenantId String   @db.Uuid
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId   String   @db.Uuid
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // תאריך לפי שעון ישראל.
+  day      DateTime @db.Date
+
+  @@id([tenantId, userId, day])
+  @@index([tenantId, day])
+  @@map("activity_days")
 }

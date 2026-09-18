@@ -1,5 +1,7 @@
 import { IsBoolean, IsOptional, IsString, Length } from 'class-validator';
 
+import { Trim } from '../../../common/validation/trim';
+
 import { IsPrice } from './price.validator';
 
 /**
@@ -12,6 +14,7 @@ import { IsPrice } from './price.validator';
  */
 export class UpdatePriceListItemDto {
   @IsOptional()
+  @Trim()
   @IsString()
   @Length(1, 200)
   description?: string;

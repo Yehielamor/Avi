@@ -15,18 +15,22 @@ import {
 } from 'class-validator';
 
 import { IsCalendarDate } from '../../../common/validation/calendar-date';
+import { Trim } from '../../../common/validation/trim';
 
 export class CreateEquipmentDto {
+  @Trim()
   @IsString()
   @Length(1, 100)
   kind!: string;
 
   @IsOptional()
+  @Trim()
   @IsString()
   @Length(1, 100)
   model?: string;
 
   @IsOptional()
+  @Trim()
   @IsString()
   @Length(1, 100)
   location?: string;
@@ -45,9 +49,9 @@ export class CreateEquipmentDto {
 }
 
 export class UpdateEquipmentDto {
-  @IsOptional() @IsString() @Length(1, 100) kind?: string;
-  @IsOptional() @IsString() @Length(1, 100) model?: string;
-  @IsOptional() @IsString() @Length(1, 100) location?: string;
+  @IsOptional() @Trim() @IsString() @Length(1, 100) kind?: string;
+  @IsOptional() @Trim() @IsString() @Length(1, 100) model?: string;
+  @IsOptional() @Trim() @IsString() @Length(1, 100) location?: string;
   @IsOptional() @IsInt() @Min(1) @Max(60) serviceIntervalMonths?: number;
   @IsOptional() @IsBoolean() isActive?: boolean;
   @IsOptional() @IsCalendarDate() lastServicedOn?: string;

@@ -113,13 +113,14 @@ curl -s -o /dev/null -w '%{http_code}' https://tenant.craftmind-ai.com/v1/tasks 
 
 | | |
 |---|---|
-| API | `https://api.craftmind-ai.com` |
+| אתר + API | `https://craftmind-ai.com` — ה-SPA, ו-`/v1/*` מועבר לאפליקציה (מקור אחד) |
+| API בלבד | `https://api.craftmind-ai.com` (אותה אפליקציה, לשימוש חיצוני) |
 | שרת | DigitalOcean Droplet, FRA1, 1 vCPU / 1GB / 25GB, `164.90.161.15` |
 | תיקייה | `/opt/craftmind` (`.env` בהרשאות 600, נוצר על השרת) |
-| DNS | Cloudflare (חשבון amor5511), רשומת `A api` → IP, **DNS only** |
+| DNS | Cloudflare (חשבון amor5511): `A @`, `A www`, `A api` → IP, כולן **DNS only** |
 | רשם | GoDaddy — נעילת העברה/מחיקה/עדכון פעילות, בתוקף עד 2029 |
 | TLS | Caddy של המארח, Let's Encrypt, חידוש אוטומטי |
-| ממשק | Vercel, `VITE_API_URL=https://api.craftmind-ai.com` |
+| ממשק | על השרת, `/var/www/craftmind` → symlink לגרסה ב-`/var/www/releases` |
 
 ### למה המבנה הזה
 
@@ -128,7 +129,21 @@ curl -s -o /dev/null -w '%{http_code}' https://tenant.craftmind-ai.com/v1/tasks 
 והאפליקציה מאזינה על `127.0.0.1:3000` בלבד. ל-Caddy של המארח נוסף בלוק אחד
 (`deploy/host-caddy.snippet`).
 
-### עדכון גרסה
+### עדכון הממשק
+
+```bash
+project-skeleton/scripts/deploy-web.sh
+```
+
+בונה ב-`--mode selfhost` (`.env.selfhost`: `VITE_API_URL` ריק = אותו מקור), מעלה לתיקיית
+גרסה חדשה ומחליף symlink. חזרה אחורה:
+
+```bash
+ssh root@164.90.161.15 'ls -1dt /var/www/releases/*'   # לבחור גרסה
+ssh root@164.90.161.15 'ln -sfn /var/www/releases/<REL> /var/www/craftmind'
+```
+
+### עדכון גרסת השרת
 
 בנייה על השרת **קורסת מחוסר זיכרון** (ליבה אחת, 1GB). בונים על מכונת פיתוח ושולחים:
 

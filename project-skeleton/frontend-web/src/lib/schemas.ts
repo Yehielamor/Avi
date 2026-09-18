@@ -92,6 +92,7 @@ export const inventoryItemSchema = z.object({
   quantity: z.number().int(),
   lowStockThreshold: z.number().int(),
   unitPrice: money.nullish(),
+  unitCost: money.nullish(),
   category: z.string().nullish(),
 });
 export type InventoryItem = z.infer<typeof inventoryItemSchema>;

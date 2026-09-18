@@ -21,6 +21,7 @@ import { TaskStatusPage } from '@/features/public/task-status-page';
 import { BookingPage } from '@/features/public/booking-page';
 import { QuotePage } from '@/features/public/quote-page';
 import { QuotesPage } from '@/features/quotes/quotes-page';
+import { ProfitabilityPage } from '@/features/reports/profitability-page';
 import { MaintenancePage } from '@/features/maintenance/maintenance-page';
 import { tokenStore } from '@/lib/api';
 
@@ -132,6 +133,12 @@ const priceListRoute = createRoute({
   component: PriceListPage,
 });
 
+const profitabilityRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/profitability',
+  component: ProfitabilityPage,
+});
+
 const quotesRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/quotes',
@@ -185,6 +192,7 @@ const routeTree = rootRoute.addChildren([
     inventoryRoute,
     maintenanceRoute,
     quotesRoute,
+    profitabilityRoute,
     priceListRoute,
     invoicesRoute,
     settingsRoute,

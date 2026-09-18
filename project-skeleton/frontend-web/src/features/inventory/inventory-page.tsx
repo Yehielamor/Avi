@@ -28,6 +28,7 @@ import {
   type InventoryScope,
 } from './inventory-api';
 import { NewItemDialog } from './new-item-dialog';
+import { CostDialog } from './cost-dialog';
 
 /* ---------------------------------------------------------------------------
    מסך המלאי.
@@ -41,6 +42,7 @@ export function InventoryPage() {
   const [scope, setScope] = useState<InventoryScope>('all');
   const [adjustTarget, setAdjustTarget] = useState<InventoryItem | null>(null);
   const [newItemOpen, setNewItemOpen] = useState(false);
+  const [costTarget, setCostTarget] = useState<InventoryItem | null>(null);
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -67,10 +69,10 @@ export function InventoryPage() {
         </TabsList>
 
         <TabsContent value="all">
-          <InventoryTab scope="all" onAdjust={setAdjustTarget} onCreate={() => setNewItemOpen(true)} />
+          <InventoryTab scope="all" onAdjust={setAdjustTarget} onCost={setCostTarget} onCreate={() => setNewItemOpen(true)} />
         </TabsContent>
         <TabsContent value="low">
-          <InventoryTab scope="low" onAdjust={setAdjustTarget} onCreate={() => setNewItemOpen(true)} />
+          <InventoryTab scope="low" onAdjust={setAdjustTarget} onCost={setCostTarget} onCreate={() => setNewItemOpen(true)} />
         </TabsContent>
       </Tabs>
 
@@ -84,6 +86,7 @@ export function InventoryPage() {
       ) : null}
 
       {newItemOpen ? <NewItemDialog onClose={() => setNewItemOpen(false)} /> : null}
+      {costTarget ? <CostDialog key={costTarget.id} item={costTarget} onClose={() => setCostTarget(null)} /> : null}
     </div>
   );
 }
@@ -91,10 +94,12 @@ export function InventoryPage() {
 function InventoryTab({
   scope,
   onAdjust,
+  onCost,
   onCreate,
 }: {
   scope: InventoryScope;
   onAdjust: (item: InventoryItem) => void;
+  onCost: (item: InventoryItem) => void;
   onCreate: () => void;
 }) {
   const [page, setPage] = useState(0);
@@ -110,7 +115,7 @@ function InventoryTab({
   const rows = list.data ?? [];
   const hasNext = rows.length === PAGE_SIZE;
 
-  const columns = buildColumns(scope, onAdjust);
+  const columns = buildColumns(scope, onAdjust, onCost);
 
   return (
     <Card className="overflow-hidden">
@@ -173,6 +178,7 @@ function InventoryTab({
 function buildColumns(
   scope: InventoryScope,
   onAdjust: (item: InventoryItem) => void,
+  onCost: (item: InventoryItem) => void,
 ): Array<Column<InventoryItem>> {
   const sku: Column<InventoryItem> = {
     key: 'sku',
@@ -257,6 +263,17 @@ function buildColumns(
         <span className="tabular text-fg">
           {row.unitPrice == null ? '—' : formatCurrency(row.unitPrice)}
         </span>
+      ),
+    },
+    {
+      key: 'unitCost',
+      header: 'עלות',
+      numeric: true,
+      // לחיץ: עלות חסרה היא מה שהופך את דו"ח הרווחיות ל"חלקי".
+      cell: (row) => (
+        <button type="button" onClick={() => onCost(row)} className="tabular text-fg hover:underline" aria-label={`עלות קנייה של ${row.name}`}>
+          {row.unitCost == null ? <span className="text-warning">הוספה</span> : formatCurrency(row.unitCost)}
+        </button>
       ),
     },
     actions,

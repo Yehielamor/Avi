@@ -241,6 +241,12 @@ describe('EquipmentService', () => {
     });
   });
 
+  it('answers an empty update with 400, not "Equipment not found" (QA F17)', async () => {
+    const e = await eq({});
+    await expect(service.update(A, e.id, {}, ACTOR)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.update(A, e.id, { location: 'מטבח' }, ACTOR)).resolves.toMatchObject({ location: 'מטבח' });
+  });
+
   it('refuses a last-service date in the future', async () => {
     await expect(
       service.create(A, customerA, { kind: 'מזגן', lastServicedOn: dayFromToday(5) }, ACTOR),

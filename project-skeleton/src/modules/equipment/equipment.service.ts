@@ -96,6 +96,11 @@ export class EquipmentService {
   }
 
   async update(tenantId: string, id: string, dto: UpdateEquipmentDto, actorId: string) {
+    // בלי שדות, updateMany מחזיר count=0 גם לציוד קיים — ו-{} נענה ב-404
+    // "Equipment not found" (QA 18.09, F17). כמו במחירון: 400.
+    if (Object.values(dto).every((v) => v === undefined)) {
+      throw new BadRequestException('Nothing to update');
+    }
     return this.prisma.forTenant(tenantId, async (tx) => {
       const { count } = await tx.equipment.updateMany({
         where: { id, tenantId },

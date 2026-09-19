@@ -60,6 +60,7 @@ step "PWA: typecheck"          bash -c 'cd frontend-pwa && npx tsc -b'
 step "PWA: lint"               bash -c 'cd frontend-pwa && npm run -s lint'
 step "PWA: tests"              bash -c 'cd frontend-pwa && npx vitest run'
 step "PWA: build"              bash -c 'cd frontend-pwa && npx vite build --mode selfhost'
+step "Email worker: typecheck" bash -c 'cd deploy/email-worker && { [ -d node_modules ] || npm ci --silent; } && npx tsc -p tsconfig.json'
 
 printf '\n\033[1;32m✔ כל השערים עברו\033[0m (%ss)\n' "$(( $(date +%s) - START ))"
 rm -rf "$LOGDIR"

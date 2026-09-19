@@ -42,6 +42,11 @@ OAUTH_STATE_SECRET=$(rand 64)
 INTEGRATION_ENCRYPTION_KEY=$(openssl rand -hex 32)
 INTEGRATION_ENCRYPTION_KEY_VERSION=1
 
+# קליטת מיילים בהעברה (ADR 0001). אותו סוד מוגדר ב-Worker:
+#   cd deploy/email-worker && npx wrangler secret put INBOUND_EMAIL_SECRET
+INBOUND_EMAIL_DOMAIN=in.craftmind-ai.com
+INBOUND_EMAIL_SECRET=$(openssl rand -hex 32)
+
 # ריקים = חיבור Google כבוי. ממלאים את שלושתם יחד כשיש אפליקציית OAuth.
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=

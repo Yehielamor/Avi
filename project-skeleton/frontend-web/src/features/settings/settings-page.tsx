@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/page-header';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { useAuth } from '@/lib/auth';
+import { EmailForwardingCard } from './email-forwarding-card';
 import { IntegrationsPanel } from './integrations-panel';
 import { ProfilePanel } from './profile-panel';
 
@@ -55,7 +56,8 @@ export function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="integrations">
+        <TabsContent value="integrations" className="space-y-5">
+          <EmailForwardingCard />
           <IntegrationsPanel />
         </TabsContent>
       </Tabs>

@@ -126,6 +126,14 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     return rows[0]?.tenant_id ?? null;
   }
 
+  /** כתובת קליטת מיילים → טננט. ראו migration 0008. */
+  async resolveTenantByInboundMailbox(localPart: string): Promise<string | null> {
+    const rows = await this.$queryRaw<Array<{ tenant_id: string | null }>>`
+      SELECT public.resolve_inbound_mailbox(${localPart}) AS tenant_id
+    `;
+    return rows[0]?.tenant_id ?? null;
+  }
+
   /**
    * ה-Proxy שהקונסטרוקטור של PrismaClient מחזיר.
    *

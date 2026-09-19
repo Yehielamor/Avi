@@ -146,6 +146,7 @@ model Tenant {
   quotes           Quote[]
   quoteLines       QuoteLine[]
   activityDays     ActivityDay[]
+  inboundMailbox   InboundMailbox?
 
   @@map("tenants")
 }
@@ -837,4 +838,29 @@ model ActivityDay {
   @@id([tenantId, userId, day])
   @@index([tenantId, day])
   @@map("activity_days")
+}
+
+/// כתובת קליטת המיילים של העסק (ADR 0001). העסק מגדיר ב-Gmail העברה
+/// אוטומטית אליה, ו-Cloudflare Email Routing מעביר כל הודעה לשרת.
+model InboundMailbox {
+  tenantId String @id @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // החלק המקומי של הכתובת: <subdomain>-<אקראי>. האקראי הוא מה שמונע
+  // מזר לשלוח משימות לעסק — ולכן אפשר להחליף אותו (rotate) אם דלף.
+  localPart String @unique
+
+  // Gmail שולח קוד אישור לכתובת העברה חדשה. אנחנו מציגים אותו לבעל
+  // העסק במקום ליצור ממנו משימה.
+  verificationCode       String?
+  verificationUrl        String?
+  verificationReceivedAt DateTime? @db.Timestamptz(3)
+
+  lastReceivedAt DateTime? @db.Timestamptz(3)
+  receivedCount  Int       @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("inbound_mailboxes")
 }

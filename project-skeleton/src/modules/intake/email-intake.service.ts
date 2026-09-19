@@ -143,9 +143,24 @@ export class EmailIntakeService {
     return report;
   }
 
-  private async ingestOne(
+  private ingestOne(tenantId: string, email: ParsedEmail) {
+    return this.ingest(tenantId, {
+      sourceId: email.gmailMessageId,
+      from: email.from,
+      subject: email.subject,
+      bodyText: email.bodyText || email.snippet,
+    });
+  }
+
+  /**
+   * הודעה אחת → משימה. משותף לכל ערוצי הקליטה (Gmail, העברה אוטומטית):
+   * ערוץ חדש משנה רק איך ההודעה מגיעה, לא איך היא הופכת למשימה.
+   *
+   * `sourceId` הוא מפתח הכפילויות, ייחודי לטננט (`@@unique([tenantId, sourceEmailId])`).
+   */
+  async ingest(
     tenantId: string,
-    email: ParsedEmail,
+    email: { sourceId: string; from: string; subject: string; bodyText: string },
   ): Promise<
     | { kind: 'skipped' }
     | { kind: 'created'; taskId: string; matchedTemplate: boolean; confidence: number }
@@ -154,7 +169,7 @@ export class EmailIntakeService {
     // `@@unique([tenantId, sourceEmailId])` + טיפול ב-P2002 למטה.
     const existing = await this.prisma.forTenant(tenantId, (tx) =>
       tx.task.findFirst({
-        where: { tenantId, sourceEmailId: email.gmailMessageId },
+        where: { tenantId, sourceEmailId: email.sourceId },
         select: { id: true },
       }),
     );
@@ -169,7 +184,7 @@ export class EmailIntakeService {
     // התבניות של הטננט (ראו intake-extraction.service.ts).
     const extraction = await this.extraction.extractFromEmail(tenantId, {
       subject: email.subject,
-      bodyText: email.bodyText || email.snippet,
+      bodyText: email.bodyText,
     });
     const autoAssign = this.extraction.shouldAutoAssignTemplate(extraction);
 
@@ -177,8 +192,8 @@ export class EmailIntakeService {
       const task = await this.tasks.createFromEmail(tenantId, {
         customerId,
         title: email.subject || '(ללא נושא)',
-        description: email.bodyText || email.snippet,
-        sourceEmailId: email.gmailMessageId,
+        description: email.bodyText,
+        sourceEmailId: email.sourceId,
         jobTypeTemplateId: autoAssign ? extraction.matchedTemplateId : null,
         extractedFields: extraction.extractedFields,
         priority: extraction.priority,
@@ -192,8 +207,8 @@ export class EmailIntakeService {
       };
     } catch (err: unknown) {
       if (isUniqueViolation(err)) {
-        // ריצת cron חופפת הספיקה לקלוט את אותו מייל. זו התנהגות
-        // תקינה של האידמפוטנטיות, לא שגיאה.
+        // ריצה חופפת (cron, או Worker שניסה שוב) הספיקה לקלוט את אותו
+        // מייל. זו התנהגות תקינה של האידמפוטנטיות, לא שגיאה.
         return { kind: 'skipped' };
       }
       throw err;

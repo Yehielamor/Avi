@@ -348,6 +348,20 @@ export class TasksService {
         metadata: { checklistItems: finalChecklist?.length ?? 0 },
       });
 
+      // ציוד שטופל: "טופל לאחרונה" מתעדכן באותה טרנזקציה של הסגירה, כך
+      // שרשימת "מגיע לטיפול" לא תציע ללקוח טיפול שהרגע בוצע. רק קדימה:
+      // סגירה מאוחרת של משימה ישנה לא מחזירה את התאריך אחורה.
+      await tx.$executeRaw`
+        UPDATE equipment e
+        SET "lastServicedAt" = t."closedAt", "updatedAt" = now()
+        FROM tasks t
+        WHERE t.id = ${taskId}::uuid
+          AND t."tenantId" = ${tenantId}::uuid
+          AND e.id = t."equipmentId"
+          AND e."tenantId" = t."tenantId"
+          AND (e."lastServicedAt" IS NULL OR e."lastServicedAt" < t."closedAt")
+      `;
+
       await tx.outboxEvent.create({
         data: {
           tenantId,

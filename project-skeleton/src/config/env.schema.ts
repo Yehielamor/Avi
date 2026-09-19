@@ -41,6 +41,9 @@ export const envSchema = z
     BASE_DOMAIN: z.string().min(1),
     CORS_ORIGINS: z.string().default('').transform(csv),
 
+    // הכתובת שבה הלקוח פותח קישור ציבורי (/c/...). נכנסת להודעות WhatsApp.
+    PUBLIC_APP_URL: z.string().url().default('https://craftmind-ai.com'),
+
     // --- Database ---
     // DATABASE_URL חייב להיות תפקיד ה-app. אם מישהו מדביק כאן בטעות
     // את ה-migrator, ה-RLS מושבת לחלוטין — ובלי הבדיקה הזו, בשקט.
@@ -75,6 +78,19 @@ export const envSchema = z
       .string()
       .regex(/^[0-9a-f]{64}$/i, 'INTEGRATION_ENCRYPTION_KEY must be exactly 64 hex chars (32 bytes)'),
     INTEGRATION_ENCRYPTION_KEY_VERSION: z.coerce.number().int().positive().default(1),
+
+    // --- קליטת מיילים בהעברה (ADR 0001) ---
+    // הדומיין ש-Cloudflare Email Routing מקבל עבורו דואר.
+    INBOUND_EMAIL_DOMAIN: z
+      .string()
+      .regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i, 'INBOUND_EMAIL_DOMAIN must be a bare domain')
+      .default('in.craftmind-ai.com'),
+    // הסוד המשותף עם ה-Email Worker. ריק = הקליטה כבויה (ה-endpoint מחזיר 503),
+    // כמו Google: אפשר להריץ את המערכת בלי הערוץ הזה.
+    INBOUND_EMAIL_SECRET: z
+      .string()
+      .default('')
+      .refine((v) => v === '' || v.length >= 32, 'INBOUND_EMAIL_SECRET must be empty or at least 32 characters'),
 
     // --- Google ---
     GOOGLE_CLIENT_ID: z.string().default(''),

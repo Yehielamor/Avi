@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { AlertTriangle, ChevronLeft, ClipboardCheck, MapPin, Phone } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ChevronLeft, ClipboardCheck, MapPin, Phone } from 'lucide-react';
 import { OfflineBanner, StaleBanner } from '@/components/data-freshness';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
@@ -34,6 +34,14 @@ export function MyJobsPage() {
 
   return (
     <div className="space-y-4">
+      <Link
+        to="/"
+        className="inline-flex min-h-11 items-center gap-1.5 text-sm text-fg-muted transition-colors active:text-fg"
+      >
+        <ArrowRight className="size-4" aria-hidden />
+        להיום שלי
+      </Link>
+
       {!online ? <OfflineBanner /> : null}
       {jobs.data.fromCache ? <StaleBanner cachedAt={jobs.data.cachedAt} /> : null}
 

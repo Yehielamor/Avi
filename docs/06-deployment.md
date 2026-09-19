@@ -158,6 +158,37 @@ ssh root@164.90.161.15 "cd /opt/craftmind && sed -i 's/^APP_IMAGE_TAG=.*/APP_IMA
 
 המיגרציות רצות אוטומטית לפני שהאפליקציה עולה. מיגרציה שנכשלה משאירה את הגרסה הקודמת.
 
+### קליטת מיילים (Cloudflare Email Routing)
+
+כל עסק מקבל כתובת `<subdomain>-<אקראי>@in.craftmind-ai.com` ומגדיר אליה העברה ב-Gmail
+(ADR 0001). הדואר מגיע ל-Cloudflare, ו-Worker שולח אותו חתום (HMAC) ל-`POST /v1/intake/inbound`.
+
+הפעלה, פעם אחת:
+
+1. **סוד משותף.** ב-`/opt/craftmind/.env`: `INBOUND_EMAIL_SECRET=$(openssl rand -hex 32)`, ואז
+   `docker compose ... up -d` מחדש. בלי הסוד ה-endpoint מחזיר 503 והמסך מציג "לא הופעל".
+2. **ה-Worker.**
+   ```bash
+   cd project-skeleton/deploy/email-worker
+   npm install
+   npx wrangler login
+   npx wrangler secret put INBOUND_EMAIL_SECRET   # אותו ערך כמו בשרת
+   npx wrangler deploy
+   ```
+3. **Email Routing** (דשבורד Cloudflare, הדומיין craftmind-ai.com): Email → Email Routing → הפעלה
+   ל-subdomain `in` (Cloudflare מוסיף את רשומות ה-MX וה-SPF של `in.craftmind-ai.com` בעצמו) →
+   Routing rules → **Catch-all** → Action: *Send to a Worker* → `craftmind-email-inbound`.
+4. **בדיקה:** בהגדרות ← חיבורים מעתיקים את הכתובת, שולחים אליה מייל מכל תיבה, ובודקים שנוצרה
+   משימה. `npx wrangler tail` מציג את ה-Worker בזמן אמת.
+
+תקלות:
+
+| מה רואים | למה |
+|---|---|
+| השולח מקבל "Unknown address" | הכתובת לא קיימת או הוחלפה (`rotate`) — השרת ענה 404 |
+| השולח מקבל כשל זמני | השרת לא ענה 2xx (למשל למטה); Cloudflare יחזיר כשל והשרת השולח ינסה שוב |
+| 401 ב-`wrangler tail` | הסוד ב-Worker שונה מזה שבשרת, או שעון השרת זז ביותר מ-5 דקות |
+
 ### גיבויים
 
 `scripts/backup-db.sh` רץ ב-cron כל לילה ב-03:17, שומר 14 יום ב-`/opt/craftmind/backups`,

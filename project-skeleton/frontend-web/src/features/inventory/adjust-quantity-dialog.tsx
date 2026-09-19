@@ -41,8 +41,6 @@ import { INVENTORY_QUERY_KEY, stockRowSchema } from './inventory-api';
 
 const MAX_DELTA = 1_000_000;
 
-type Direction = 'add' | 'remove';
-
 function buildSchema(currentQuantity: number) {
   return z
     .object({
@@ -190,7 +188,7 @@ export function AdjustQuantityDialog({
                 render={({ field }) => (
                   <Select
                     value={field.value}
-                    onValueChange={(v) => field.onChange(v as Direction)}
+                    onValueChange={(v) => field.onChange(v)}
                   >
                     <SelectTrigger id="adjust-direction" aria-label="סוג העדכון">
                       <SelectValue />

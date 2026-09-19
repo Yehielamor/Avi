@@ -50,12 +50,8 @@ const PROVIDERS: Array<{
   description: string;
   icon: typeof Mail;
 }> = [
-  {
-    provider: 'GMAIL',
-    title: 'Gmail',
-    description: 'קליטת מיילים נכנסים והפיכתם למשימות',
-    icon: Mail,
-  },
+  // Gmail כבר לא כאן: קליטת מיילים עברה להעברה אוטומטית (EmailForwardingCard,
+  // ADR 0001) — בלי OAuth ובלי גישה לכל התיבה.
   {
     provider: 'DRIVE',
     title: 'Google Drive',

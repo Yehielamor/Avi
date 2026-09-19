@@ -4,6 +4,7 @@ import { ClipboardList } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { EquipmentCard } from './equipment-card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -16,7 +17,7 @@ import { formatDateTime, formatRelative } from '@/lib/utils';
 export function CustomerDetailPage() {
   // strict:false — הרכיב מיוצא לפני רישום המסלול, ולכן הפרמטר אינו
   // מוכר לטיפוסי הראוטר בזמן קומפילציה.
-  const params = useParams({ strict: false }) as { customerId?: string };
+  const params = useParams({ strict: false });
   const customerId = params.customerId ?? '';
 
   const customer = useQuery({
@@ -114,6 +115,8 @@ export function CustomerDetailPage() {
           </dl>
         </CardContent>
       </Card>
+
+      <EquipmentCard customerId={customerId} />
 
       <Card>
         <CardHeader>

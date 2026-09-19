@@ -134,9 +134,9 @@ export async function request<T = unknown>(path: string, opts: RequestOptions<T>
         typeof payload === 'object' &&
         payload !== null &&
         'message' in payload &&
-        typeof (payload as { message: unknown }).message === 'string'
+        typeof payload.message === 'string'
       ) {
-        message = (payload as { message: string }).message;
+        message = payload.message;
       }
     } catch {
       /* גוף שאינו JSON — נשארים עם הודעת ברירת המחדל */

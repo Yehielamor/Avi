@@ -16,6 +16,7 @@ import { WorkerModule } from './queue/worker.module';
 import { TenantContextMiddleware } from './common/tenant-context.middleware';
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { RolesGuard } from './common/guards/roles.guard';
+import { THROTTLERS } from './common/throttle';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 
 import { TenantsModule } from './modules/tenants/tenants.module';
@@ -31,6 +32,12 @@ import { InvoicingModule } from './modules/invoicing/invoicing.module';
 import { CommsModule } from './modules/comms/comms.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { PriceListModule } from './modules/price-list/price-list.module';
+import { PublicLinksModule } from './modules/public-links/public-links.module';
+import { FieldRouteModule } from './modules/field-route/field-route.module';
+import { TaskStatusModule } from './modules/task-status/task-status.module';
+import { EquipmentModule } from './modules/equipment/equipment.module';
+import { QuotesModule } from './modules/quotes/quotes.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 
 /**
@@ -92,11 +99,8 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
     // הגבלת קצב גלובלית. קודם לא הייתה בכלל: /auth/login היה פתוח
     // ל-credential stuffing בלתי מוגבל, ו-bcrypt בעלות 12 הפך את זה
     // גם ל-DoS זול על ה-CPU. ראו docs/10-audit-findings.md#I2.
-    ThrottlerModule.forRoot([
-      { name: 'short', ttl: 1_000, limit: 20 },
-      { name: 'medium', ttl: 60_000, limit: 200 },
-      { name: 'long', ttl: 3_600_000, limit: 2_000 },
-    ]),
+    // השמות מוגדרים ב-common/throttle.ts: דריסה per-route חייבת להשתמש בהם.
+    ThrottlerModule.forRoot(THROTTLERS),
 
     EventEmitterModule.forRoot(),
 
@@ -119,6 +123,12 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
     CommsModule,
     InventoryModule,
     PriceListModule,
+    PublicLinksModule,
+    TaskStatusModule,
+    FieldRouteModule,
+    EquipmentModule,
+    QuotesModule,
+    ReportsModule,
     OnboardingModule,
 
     // נטען אחרון: הוא מייבא את מודולי הדומיין שלמעלה, והעובדים

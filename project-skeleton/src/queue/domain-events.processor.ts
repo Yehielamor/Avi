@@ -87,12 +87,15 @@ export class DomainEventsProcessor extends WorkerHost {
       .filter((x): x is { r: PromiseRejectedResult; name: string } => x.r.status === 'rejected');
 
     for (const f of failures) {
-      this.logger.error({ err: f.r.reason, handler: f.name, eventName }, 'Handler failed');
+      this.logger.error(
+        { err: f.r.reason as unknown, handler: f.name, eventName },
+        'Handler failed',
+      );
     }
 
     if (failures.length > 0) {
       throw new AggregateError(
-        failures.map((f) => f.r.reason),
+        failures.map((f): unknown => f.r.reason),
         `${failures.length} handler(s) failed for ${eventName}: ${failures.map((f) => f.name).join(', ')}`,
       );
     }

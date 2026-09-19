@@ -43,6 +43,13 @@ export class CreateInventoryItemDto {
   @Type(() => Number)
   unitPrice?: number;
 
+  // עלות קנייה — בסיס דו"ח הרווחיות. אותו פורמט כמו unitPrice.
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Type(() => Number)
+  unitCost?: number;
+
   @IsOptional()
   @IsString()
   @Length(1, 100)

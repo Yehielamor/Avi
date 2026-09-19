@@ -11,6 +11,7 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle, EmptyState, ErrorState, Skeleton } from '@/components/ui';
 import { PageHeader } from '@/components/page-header';
+import { MorningBrief } from './morning-brief';
 import { PriorityBadge, TaskStatusBadge } from '@/features/tasks/task-status';
 import { request } from '@/lib/api';
 import { dashboardStatsSchema, taskListSchema } from '@/lib/schemas';
@@ -30,7 +31,9 @@ export function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader title="סקירה" description="מה פתוח עכשיו" />
+      <PageHeader title="סקירה" description="מה מחכה לך היום" />
+
+      <MorningBrief />
 
       {/* המספר הזה לבדו מצדיק פעולה מיידית, ולכן הוא מעל הכל
           ומופיע רק כשהוא רלוונטי. באנר קבוע נעלם מהעין. */}

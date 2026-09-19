@@ -17,6 +17,12 @@ import { InventoryPage } from '@/features/inventory/inventory-page';
 import { PriceListPage } from '@/features/price-list/price-list-page';
 import { InvoicesPage } from '@/features/invoices/invoices-page';
 import { SettingsPage } from '@/features/settings/settings-page';
+import { TaskStatusPage } from '@/features/public/task-status-page';
+import { BookingPage } from '@/features/public/booking-page';
+import { QuotePage } from '@/features/public/quote-page';
+import { QuotesPage } from '@/features/quotes/quotes-page';
+import { ProfitabilityPage } from '@/features/reports/profitability-page';
+import { MaintenancePage } from '@/features/maintenance/maintenance-page';
 import { tokenStore } from '@/lib/api';
 
 /**
@@ -32,6 +38,7 @@ const loginRoute = createRoute({
   // משתמש עם טוקן שמנווט ל-/login מוחזר פנימה. בלי זה, "חזור"
   // בדפדפן אחרי התחברות מציג שוב את מסך ההתחברות.
   beforeLoad: () => {
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- TanStack Router's contract: beforeLoad throws the Redirect (a Response, not an Error)
     if (tokenStore.get()) throw redirect({ to: '/' });
   },
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
@@ -54,11 +61,34 @@ const onboardingRoute = createRoute({
   component: OnboardingPage,
 });
 
+/**
+ * דפים שהלקוח של העסק פותח מקישור ב-WhatsApp. בלי התחברות ובלי מעטפת
+ * האפליקציה: הטוקן בכתובת הוא ההרשאה, והשרת מאמת אותו בכל בקשה.
+ */
+const publicStatusRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/c/s/$token',
+  component: TaskStatusPage,
+});
+
+const publicBookingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/c/b/$token',
+  component: BookingPage,
+});
+
+const publicQuoteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/c/q/$token',
+  component: QuotePage,
+});
+
 const protectedRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'protected',
   beforeLoad: ({ location }) => {
     if (!tokenStore.get()) {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- TanStack Router's contract: beforeLoad throws the Redirect (a Response, not an Error)
       throw redirect({ to: '/login', search: { redirect: location.href } });
     }
   },
@@ -105,6 +135,24 @@ const priceListRoute = createRoute({
   component: PriceListPage,
 });
 
+const profitabilityRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/profitability',
+  component: ProfitabilityPage,
+});
+
+const quotesRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/quotes',
+  component: QuotesPage,
+});
+
+const maintenanceRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/maintenance',
+  component: MaintenancePage,
+});
+
 const inventoryRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/inventory',
@@ -134,6 +182,9 @@ const settingsTabRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   loginRoute,
   onboardingRoute,
+  publicStatusRoute,
+  publicBookingRoute,
+  publicQuoteRoute,
   protectedRoute.addChildren([
     indexRoute,
     tasksRoute,
@@ -141,6 +192,9 @@ const routeTree = rootRoute.addChildren([
     customersRoute,
     customerDetailRoute,
     inventoryRoute,
+    maintenanceRoute,
+    quotesRoute,
+    profitabilityRoute,
     priceListRoute,
     invoicesRoute,
     settingsRoute,

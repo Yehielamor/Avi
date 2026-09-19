@@ -6,6 +6,16 @@ import { generateInvoicePdf } from './invoice-pdf.util';
 import type { PrismaService, TenantClient } from '../../database/prisma.service';
 import type { IntegrationsService } from '../integrations/integrations.service';
 
+/** `mock.calls` מוקלד כ-any; כאן הוא נחשף כ-unknown, כך שכל בדיקה חייבת לומר מה היא מצפה למצוא. */
+function callsOf(fn: jest.Mock): unknown[][] {
+  return fn.mock.calls as unknown[][];
+}
+
+/** ארגומנט `arg` של קריאה מספר `call` ל-mock. */
+function callArg(fn: jest.Mock, call = 0, arg = 0): unknown {
+  return callsOf(fn)[call]?.[arg];
+}
+
 jest.mock('./invoice-pdf.util', () => ({
   generateInvoicePdf: jest.fn(),
 }));
@@ -51,6 +61,7 @@ describe('InvoicingService', () => {
   let forTenant: jest.Mock;
   let driveSend: jest.Mock;
   let getConnector: jest.Mock;
+  let warnSpy: jest.SpyInstance;
   let service: InvoicingService;
 
   /** עוטף mock כך שכל קריאה נרשמת עם מספר הטרנזקציה הפעילה. */
@@ -69,16 +80,16 @@ describe('InvoicingService', () => {
     price: decimal(price),
   });
 
-  const lineItemArgs = () => lineItemCreateMany.mock.calls[0]?.[0] as {
+  const lineItemArgs = () => callArg(lineItemCreateMany) as {
     data: Array<{ invoiceId: string; taskId: string; priceCode: string; description: string; amount: Prisma.Decimal }>;
   };
 
-  const invoiceArgs = () => invoiceCreate.mock.calls[0]?.[0] as {
+  const invoiceArgs = () => callArg(invoiceCreate) as {
     data: { invoiceNumber: number; totalAmount: Prisma.Decimal; status: string; tenantId: string };
   };
 
   beforeEach(() => {
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
 
     trace = [];
@@ -346,7 +357,7 @@ describe('InvoicingService', () => {
           where: expect.objectContaining({
             status: 'CLOSED',
             id: { notIn: ['task-old', 'task-older'] },
-          }),
+          }) as unknown,
         }),
       );
     });
@@ -421,7 +432,7 @@ describe('InvoicingService', () => {
   // ==========================================================
   describe('running invoice number', () => {
     const rawSql = (mock: jest.Mock, call = 0): string => {
-      const parts = mock.mock.calls[call]?.[0] as { raw?: string[] } | string[] | undefined;
+      const parts = callArg(mock, call) as { raw?: string[] } | string[] | undefined;
       const raw = Array.isArray(parts) ? parts : (parts?.raw ?? []);
       return raw.join('?');
     };
@@ -449,7 +460,7 @@ describe('InvoicingService', () => {
       const sql = rawSql(queryRaw);
       expect(sql).toContain('MAX("invoiceNumber")');
       expect(sql).toContain('"tenantId"');
-      expect(queryRaw.mock.calls[0]?.slice(1)).toEqual([TENANT]);
+      expect(callsOf(queryRaw)[0]?.slice(1)).toEqual([TENANT]);
     });
 
     it('writes the allocated number onto the invoice', async () => {
@@ -463,19 +474,19 @@ describe('InvoicingService', () => {
       // מפתח נעילה שאינו יציב = שתי הפקות מקבילות שלא רואות זו את זו
       // ומקבלות את אותו מספר.
       await service.generateInvoice(TENANT, { customerId: CUSTOMER, ...PERIOD });
-      const first = executeRaw.mock.calls[0]?.[1];
+      const first = callArg(executeRaw, 0, 1);
       executeRaw.mockClear();
       await service.generateInvoice(TENANT, { customerId: CUSTOMER, ...PERIOD });
-      expect(executeRaw.mock.calls[0]?.[1]).toBe(first);
+      expect(callArg(executeRaw, 0, 1)).toBe(first);
       expect(typeof first).toBe('bigint');
     });
 
     it('does not let one tenant block another', async () => {
       await service.generateInvoice(TENANT, { customerId: CUSTOMER, ...PERIOD });
-      const first = executeRaw.mock.calls[0]?.[1];
+      const first = callArg(executeRaw, 0, 1);
       executeRaw.mockClear();
       await service.generateInvoice(OTHER_TENANT, { customerId: CUSTOMER, ...PERIOD });
-      expect(executeRaw.mock.calls[0]?.[1]).not.toBe(first);
+      expect(callArg(executeRaw, 0, 1)).not.toBe(first);
     });
 
     it('keeps the lock key inside the non-negative bigint range', async () => {
@@ -483,7 +494,7 @@ describe('InvoicingService', () => {
       for (const tenant of [TENANT, OTHER_TENANT, 'ffffffff-ffff-ffff-ffff-ffffffffffff']) {
         executeRaw.mockClear();
         await service.generateInvoice(tenant, { customerId: CUSTOMER, ...PERIOD });
-        const key = executeRaw.mock.calls[0]?.[1] as bigint;
+        const key = callArg(executeRaw, 0, 1) as bigint;
         expect(key).toBeGreaterThanOrEqual(0n);
         expect(key).toBeLessThan(2n ** 32n);
       }
@@ -508,7 +519,7 @@ describe('InvoicingService', () => {
       expect(invoiceUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'inv-1' },
-          data: expect.objectContaining({ status: 'FINALIZED', pdfDriveFileId: 'drive-file-1' }),
+          data: expect.objectContaining({ status: 'FINALIZED', pdfDriveFileId: 'drive-file-1' }) as unknown,
         }),
       );
     });
@@ -536,9 +547,9 @@ describe('InvoicingService', () => {
     it('does not run the PDF or the upload inside a transaction', async () => {
       // קריאת רשת בתוך forTenant מחזיקה חיבור DB לדקות (קונבנציות, §1).
       let insideTx = false;
-      generatePdfMock.mockImplementation(async () => {
+      generatePdfMock.mockImplementation(() => {
         insideTx = pendingTx > 0;
-        return Buffer.from('pdf');
+        return Promise.resolve(Buffer.from('pdf'));
       });
       let pendingTx = 0;
       forTenant.mockImplementation(async (_t: string, fn: (t: TenantClient) => Promise<unknown>) => {
@@ -574,7 +585,7 @@ describe('InvoicingService', () => {
 
       await service.validateClosedTask({ tenantId: TENANT, taskId: 'task-1' });
 
-      expect(Logger.prototype.warn).toHaveBeenCalledWith(expect.stringContaining('MISSING'));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('MISSING'));
     });
 
     it('stays quiet when every priceCode resolves', async () => {
@@ -583,7 +594,7 @@ describe('InvoicingService', () => {
 
       await service.validateClosedTask({ tenantId: TENANT, taskId: 'task-1' });
 
-      expect(Logger.prototype.warn).not.toHaveBeenCalled();
+      expect(warnSpy).not.toHaveBeenCalled();
     });
 
     it('does not throw for a task that has no checklist', async () => {
@@ -600,7 +611,7 @@ describe('InvoicingService', () => {
 
       expect(priceListFindMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ isActive: true, tenantId: TENANT }),
+          where: expect.objectContaining({ isActive: true, tenantId: TENANT }) as unknown,
         }),
       );
     });
@@ -642,7 +653,7 @@ describe('InvoicingService', () => {
 
   it('never reaches the database outside forTenant', async () => {
     await service.generateInvoice(TENANT, { customerId: CUSTOMER, ...PERIOD });
-    for (const call of forTenant.mock.calls) {
+    for (const call of callsOf(forTenant)) {
       expect(call[0]).toBe(TENANT);
     }
   });

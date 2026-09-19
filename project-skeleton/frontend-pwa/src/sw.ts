@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-/* eslint-disable no-restricted-globals */
+ 
 
 /* ---------------------------------------------------------------------------
    Service worker.
@@ -105,7 +105,7 @@ registerRoute(
 self.addEventListener('message', (event: ExtendableMessageEvent) => {
   const data: unknown = event.data;
   if (typeof data !== 'object' || data === null || !('type' in data)) return;
-  const type = (data as { type: unknown }).type;
+  const type = (data).type;
 
   // עדכון גרסה ללא המתנה לסגירת כל הטאבים.
   if (type === 'SKIP_WAITING') void self.skipWaiting();

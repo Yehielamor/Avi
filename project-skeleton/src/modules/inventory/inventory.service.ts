@@ -277,6 +277,7 @@ export class InventoryService {
             lowStockThreshold: data.lowStockThreshold ?? 5,
             // כסף הוא Decimal, לא Number (קונבנציות, סעיף 4).
             unitPrice: data.unitPrice == null ? null : new Prisma.Decimal(data.unitPrice),
+            unitCost: data.unitCost == null ? null : new Prisma.Decimal(data.unitCost),
             category: data.category ?? null,
           },
         });
@@ -357,6 +358,30 @@ export class InventoryService {
       });
 
       return row;
+    });
+  }
+
+  /** עלות קנייה לפריט. נרשמת ביומן — היא משנה כל דו"ח רווח שנגזר ממנה. */
+  async setCost(tenantId: string, id: string, unitCost: string | null, actorUserId?: string) {
+    return this.prisma.forTenant(tenantId, async (tx) => {
+      const before = await tx.inventoryItem.findFirst({ where: { id, tenantId }, select: { unitCost: true } });
+      if (!before) throw new NotFoundException('Inventory item not found');
+      const item = await tx.inventoryItem.update({
+        where: { id },
+        data: { unitCost: unitCost === null ? null : new Prisma.Decimal(unitCost) },
+        select: { id: true, sku: true, name: true, unitCost: true },
+      });
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          userId: actorUserId ?? null,
+          action: 'inventory.cost_set',
+          entityType: 'InventoryItem',
+          entityId: id,
+          metadata: { from: before.unitCost?.toString() ?? null, to: item.unitCost?.toString() ?? null },
+        },
+      });
+      return item;
     });
   }
 }

@@ -1,5 +1,7 @@
 import { IsString, Length, Matches } from 'class-validator';
 
+import { Trim } from '../../../common/validation/trim';
+
 import { IsPrice } from './price.validator';
 
 export class CreatePriceListItemDto {
@@ -13,6 +15,7 @@ export class CreatePriceListItemDto {
   })
   code!: string;
 
+  @Trim()
   @IsString()
   @Length(1, 200)
   description!: string;

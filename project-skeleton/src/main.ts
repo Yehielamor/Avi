@@ -1,4 +1,4 @@
-import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
+import { Logger, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -6,10 +6,12 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import compression from 'compression';
 import helmet from 'helmet';
 import { Logger as PinoLogger } from 'nestjs-pino';
-import { json, urlencoded } from 'express';
+import { urlencoded } from 'express';
 
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { jsonBody } from './common/json-body';
+import { buildGlobalPipes } from './common/validation/global-pipes';
 import type { AppEnv } from './config/env.schema';
 import { SESSION_SECRET_HEADER } from './modules/onboarding/dto/onboarding.dto';
 
@@ -51,7 +53,8 @@ async function bootstrap(): Promise<void> {
   // --- Body limits ---------------------------------------------------------
   // בלי זה, POST יחיד של 500MB מפוצץ את הזיכרון של הקונטיינר.
   // העלאות קבצים מוגבלות בנפרד ב-FileInterceptor של כל endpoint.
-  app.use(json({ limit: '1mb' }));
+  // jsonBody שומר req.rawBody רק ל-webhook החתום של המיילים הנכנסים.
+  app.use(jsonBody('1mb'));
   app.use(urlencoded({ extended: true, limit: '1mb' }));
 
   // --- CORS ----------------------------------------------------------------
@@ -102,20 +105,9 @@ async function bootstrap(): Promise<void> {
   });
 
   // --- Validation ----------------------------------------------------------
-  // whitelist + forbidNonWhitelisted הם מה שחוסם את
-  // `POST /auth/register {"role":"OWNER"}` — שדה שאינו ב-DTO נדחה
-  // ב-400 במקום להגיע ל-prisma.create. ראו docs/10-audit-findings.md#I2.
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      transformOptions: { enableImplicitConversion: false },
-      // בפרודקשן לא מחזירים את הערך שנכשל — הוא עלול להכיל סוד.
-      disableErrorMessages: false,
-      validationError: { target: false, value: !isProd },
-    }),
-  );
+  // ראו common/validation/global-pipes.ts: דחיית NUL, ואז ValidationPipe עם
+  // whitelist + forbidNonWhitelisted.
+  app.useGlobalPipes(...buildGlobalPipes(isProd));
 
   app.useGlobalFilters(new AllExceptionsFilter(isProd));
 

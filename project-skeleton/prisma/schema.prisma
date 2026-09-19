@@ -59,6 +59,8 @@ enum TaskStatus {
 enum TaskSource {
   EMAIL
   MANUAL
+  CUSTOMER_LINK
+  QUOTE
 }
 
 enum IntegrationProvider {
@@ -139,6 +141,12 @@ model Tenant {
   outboxEvents     OutboxEvent[]
   idempotencyKeys  IdempotencyKey[]
   llmUsage         LlmUsage[]
+  publicLinks      PublicLink[]
+  equipment        Equipment[]
+  quotes           Quote[]
+  quoteLines       QuoteLine[]
+  activityDays     ActivityDay[]
+  inboundMailbox   InboundMailbox?
 
   @@map("tenants")
 }
@@ -222,6 +230,7 @@ model User {
   auditLogs             AuditLog[]
   connectedIntegrations TenantIntegration[]
   stockMovements        StockMovement[]
+  activityDays          ActivityDay[]
 
   @@unique([tenantId, email])
   @@index([tenantId, role, isActive])
@@ -249,8 +258,11 @@ model Customer {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
-  tasks    Task[]
-  invoices Invoice[]
+  tasks       Task[]
+  invoices    Invoice[]
+  equipment   Equipment[]
+  quotes      Quote[]
+  publicLinks PublicLink[]
 
   // חיפוש לפי אימייל ב-Gmail sync הוא התאמה *מדויקת*, לא contains.
   // האינדקס הזה הוא מה שהופך אותו מסריקה מלאה ל-lookup (I16).
@@ -297,7 +309,22 @@ model Task {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   closedAt  DateTime? @db.Timestamptz(3)
 
+  // מועד הביקור. בלעדיו דף הסטטוס ללקוח לא יודע לומר "מתי".
+  scheduledStart        DateTime? @db.Timestamptz(3)
+  scheduledEnd          DateTime? @db.Timestamptz(3)
+  // האותות היחידים שהלקוח יכול לשלוח מהקישור הציבורי.
+  customerConfirmedAt   DateTime? @db.Timestamptz(3)
+  rescheduleRequest     String?
+  rescheduleRequestedAt DateTime? @db.Timestamptz(3)
+  // הטכנאי לחץ "בדרך". הסטטוס ללקוח נגזר ממנו.
+  onTheWayAt            DateTime? @db.Timestamptz(3)
+
+  equipmentId String?    @db.Uuid
+  equipment   Equipment? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+
   invoiceLineItems InvoiceLineItem[]
+  publicLinks      PublicLink[]
+  quote            Quote?
   stockMovements   StockMovement[]
 
   // ה-constraint שהופך את ה-dedup של Gmail מ-race ל-ערובה (C14).
@@ -311,6 +338,8 @@ model Task {
   @@index([tenantId, customerId, status, closedAt])
   @@index([tenantId, createdAt(sort: Desc)])
   @@index([jobTypeTemplateId])
+  @@index([tenantId, assignedToUserId, scheduledStart])
+  @@index([equipmentId])
   @@map("tasks")
 }
 
@@ -328,6 +357,8 @@ model InventoryItem {
   quantity          Int      @default(0)
   lowStockThreshold Int      @default(5)
   unitPrice         Decimal? @db.Decimal(12, 2)
+  // עלות קנייה. חסרה → דו"ח הרווח מסמן "חלקי", לא מחשב כאילו אפס.
+  unitCost          Decimal? @db.Decimal(12, 2)
   category          String?
   isActive          Boolean  @default(true)
 
@@ -655,4 +686,181 @@ model OnboardingDocument {
 
   @@index([sessionId, docType])
   @@map("onboarding_documents")
+}
+
+// ------------------------------------------------------------
+// קישורים ציבוריים ללקוח — סטטוס, קביעת מועד, הצעת מחיר
+// ------------------------------------------------------------
+
+enum PublicLinkPurpose {
+  TASK_STATUS
+  BOOKING
+  QUOTE
+}
+
+model PublicLink {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // רק ה-hash נשמר. דליפה של הטבלה לא נותנת אף קישור פעיל.
+  tokenHash String            @unique
+  purpose   PublicLinkPurpose
+
+  customerId String   @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  taskId      String?    @db.Uuid
+  task        Task?      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  equipmentId String?    @db.Uuid
+  equipment   Equipment? @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  quoteId     String?    @db.Uuid
+  quote       Quote?     @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  expiresAt DateTime  @db.Timestamptz(3)
+  // קישור קביעת מועד נסגר אחרי שימוש אחד.
+  usedAt    DateTime? @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([tenantId, taskId, purpose])
+  @@index([tenantId, quoteId])
+  @@index([tenantId, equipmentId])
+  @@map("public_links")
+}
+
+// ------------------------------------------------------------
+// ציוד של לקוח — הבסיס לתחזוקה מונעת
+// ------------------------------------------------------------
+
+model Equipment {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  customerId String   @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  kind                  String
+  model                 String?
+  location              String?
+  serviceIntervalMonths Int       @default(6)
+  lastServicedAt        DateTime? @db.Timestamptz(3)
+  // תזכורת שנשלחה ב-14 הימים האחרונים מסומנת — לא שולחים פעמיים בטעות.
+  lastReminderAt        DateTime? @db.Timestamptz(3)
+  isActive              Boolean   @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  tasks       Task[]
+  publicLinks PublicLink[]
+
+  @@index([tenantId, customerId])
+  @@index([tenantId, isActive, lastServicedAt])
+  @@map("equipment")
+}
+
+// ------------------------------------------------------------
+// הצעות מחיר
+// ------------------------------------------------------------
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  APPROVED
+  DECLINED
+  EXPIRED
+}
+
+model Quote {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  customerId String   @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  quoteNumber Int
+  status      QuoteStatus @default(DRAFT)
+  notes       String?
+  totalAmount Decimal     @db.Decimal(12, 2)
+  validUntil  DateTime    @db.Timestamptz(3)
+
+  approvedAt DateTime? @db.Timestamptz(3)
+  declinedAt DateTime? @db.Timestamptz(3)
+  // ייחודי: אישור כפול (לחיצה כפולה, רענון) לא יוצר שתי משימות.
+  taskId     String?   @unique @db.Uuid
+  task       Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  lines       QuoteLine[]
+  publicLinks PublicLink[]
+
+  @@unique([tenantId, quoteNumber])
+  @@index([tenantId, status, createdAt(sort: Desc)])
+  @@index([tenantId, customerId])
+  @@map("quotes")
+}
+
+model QuoteLine {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  quoteId String @db.Uuid
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  // עותק מהמחירון ברגע ההצעה — שינוי מחיר אחר כך לא משנה הצעה שנשלחה.
+  priceCode   String
+  description String
+  qty         Int
+  unitPrice   Decimal @db.Decimal(12, 2)
+  amount      Decimal @db.Decimal(12, 2)
+  position    Int
+
+  @@index([quoteId])
+  @@map("quote_lines")
+}
+
+/// יום שבו משתמש פתח את תדריך הבוקר. שורה אחת ליום — הבסיס למדידת שימור
+/// (האם בעל העסק חוזר ביום 8 וביום 30), בלי כלי אנליטיקה חיצוני.
+model ActivityDay {
+  tenantId String   @db.Uuid
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId   String   @db.Uuid
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // תאריך לפי שעון ישראל.
+  day      DateTime @db.Date
+
+  @@id([tenantId, userId, day])
+  @@index([tenantId, day])
+  @@map("activity_days")
+}
+
+/// כתובת קליטת המיילים של העסק (ADR 0001). העסק מגדיר ב-Gmail העברה
+/// אוטומטית אליה, ו-Cloudflare Email Routing מעביר כל הודעה לשרת.
+model InboundMailbox {
+  tenantId String @id @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // החלק המקומי של הכתובת: <subdomain>-<אקראי>. האקראי הוא מה שמונע
+  // מזר לשלוח משימות לעסק — ולכן אפשר להחליף אותו (rotate) אם דלף.
+  localPart String @unique
+
+  // Gmail שולח קוד אישור לכתובת העברה חדשה. אנחנו מציגים אותו לבעל
+  // העסק במקום ליצור ממנו משימה.
+  verificationCode       String?
+  verificationUrl        String?
+  verificationReceivedAt DateTime? @db.Timestamptz(3)
+
+  lastReceivedAt DateTime? @db.Timestamptz(3)
+  receivedCount  Int       @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("inbound_mailboxes")
 }

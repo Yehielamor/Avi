@@ -1,0 +1,15 @@
+# Cloudflare Email Worker — קליטת מיילים בהעברה (ADR 0001).
+#
+# הניתוב עצמו (כל כתובת ב-in.craftmind-ai.com ← ה-Worker הזה) מוגדר
+# בדשבורד: Email → Email Routing → Routing rules → Catch-all → Send to Worker.
+# ראו docs/06-deployment.md, "קליטת מיילים".
+name = "craftmind-email-inbound"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+[vars]
+API_URL = "https://api.craftmind-ai.com/v1/intake/inbound"
+
+# הסוד המשותף — לא כאן, אלא:
+#   npx wrangler secret put INBOUND_EMAIL_SECRET
+# אותו ערך כמו INBOUND_EMAIL_SECRET ב-.env של השרת.

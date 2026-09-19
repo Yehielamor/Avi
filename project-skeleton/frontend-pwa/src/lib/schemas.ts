@@ -14,6 +14,9 @@ import { z } from 'zod';
 export const taskStatusSchema = z.enum(['NEW', 'ASSIGNED', 'IN_PROGRESS', 'CLOSED', 'CANCELLED']);
 export type TaskStatus = z.infer<typeof taskStatusSchema>;
 
+export const taskSourceSchema = z.enum(['EMAIL', 'MANUAL', 'CUSTOMER_LINK', 'QUOTE']);
+export type TaskSource = z.infer<typeof taskSourceSchema>;
+
 export const userRoleSchema = z.enum(['OWNER', 'MANAGER', 'FIELD']);
 export type UserRole = z.infer<typeof userRoleSchema>;
 
@@ -50,7 +53,9 @@ export const taskSchema = z.object({
   description: z.string().nullish(),
   status: taskStatusSchema,
   priority: z.number().int(),
-  source: z.enum(['EMAIL', 'MANUAL']),
+  // כל המקורות שהשרת יודע להחזיר. מקור לא מוכר כאן מפיל את הסכמה — ואיתה את
+  // כל רשימת המשימות — ולכן הרשימה תואמת בדיוק ל-TaskSource ב-Prisma.
+  source: taskSourceSchema,
   customerId: z.string().uuid(),
   customer: customerSchema.nullish(),
   assignedToUserId: z.string().uuid().nullish(),
@@ -58,6 +63,8 @@ export const taskSchema = z.object({
   checklist: z.array(checklistItemSchema).nullish(),
   createdAt: z.string(),
   closedAt: z.string().nullish(),
+  scheduledStart: z.string().nullish(),
+  scheduledEnd: z.string().nullish(),
 });
 export type Task = z.infer<typeof taskSchema>;
 
@@ -115,3 +122,33 @@ export const authResponseSchema = sessionSchema.extend({
   accessToken: z.string().min(1),
 });
 export type AuthResponse = z.infer<typeof authResponseSchema>;
+
+/** כל endpoint שמייצר קישור ללקוח (שיתוף, "בדרך"). */
+export const shareResultSchema = z.object({ url: z.string(), waUrl: z.string().nullable(), message: z.string() });
+export type ShareResult = z.infer<typeof shareResultSchema>;
+
+const stopSchema = z.object({
+  taskId: z.string().uuid(),
+  title: z.string(),
+  status: taskStatusSchema,
+  priority: z.number().int(),
+  scheduledStart: z.string().nullable(),
+  scheduledEnd: z.string().nullable(),
+  overdue: z.boolean(),
+  confirmed: z.boolean(),
+  rescheduleRequested: z.boolean(),
+  onTheWay: z.boolean(),
+  customer: z.object({ name: z.string(), phone: z.string().nullable(), address: z.string().nullable() }),
+  hasLocation: z.boolean(),
+  wazeUrl: z.string().nullable(),
+});
+export type Stop = z.infer<typeof stopSchema>;
+
+/** GET /field/my-day */
+export const myDaySchema = z.object({
+  date: z.string(),
+  isToday: z.boolean(),
+  stops: z.array(stopSchema),
+  done: z.array(stopSchema),
+});
+export type MyDay = z.infer<typeof myDaySchema>;

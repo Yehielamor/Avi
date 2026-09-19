@@ -33,6 +33,7 @@ import { CommsModule } from './modules/comms/comms.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { PriceListModule } from './modules/price-list/price-list.module';
 import { PublicLinksModule } from './modules/public-links/public-links.module';
+import { FieldRouteModule } from './modules/field-route/field-route.module';
 import { TaskStatusModule } from './modules/task-status/task-status.module';
 import { EquipmentModule } from './modules/equipment/equipment.module';
 import { QuotesModule } from './modules/quotes/quotes.module';
@@ -124,6 +125,7 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
     PriceListModule,
     PublicLinksModule,
     TaskStatusModule,
+    FieldRouteModule,
     EquipmentModule,
     QuotesModule,
     ReportsModule,

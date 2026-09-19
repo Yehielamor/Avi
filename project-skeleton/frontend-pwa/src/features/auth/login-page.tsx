@@ -21,7 +21,7 @@ export function LoginPage() {
   const online = useOnline();
   // ה-guard של המסלול שומר לאן המשתמש ניסה להגיע לפני שהופנה לכאן,
   // כדי שהתחברות תחזיר אותו לשם ולא למסך הבית.
-  const search = useSearch({ strict: false }) as { redirect?: string };
+  const search = useSearch({ strict: false });
   const [serverError, setServerError] = useState<string | null>(null);
 
   const {
@@ -79,7 +79,7 @@ export function LoginPage() {
         ) : null}
 
         <form
-          onSubmit={onSubmit}
+          onSubmit={(e) => void onSubmit(e)}
           noValidate
           className="space-y-5 rounded-(--radius-xl) border border-border bg-surface-raised p-5 shadow-sm"
         >

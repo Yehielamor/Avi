@@ -1,12 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
-import { ArrowRight, MapPin, Navigation, Phone } from 'lucide-react';
+import { ArrowRight, MapPin, Navigation, Phone, Send, Truck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { OfflineBanner, StaleBanner } from '@/components/data-freshness';
-import { Badge, Card, CardContent, CardHeader, CardTitle, Checkbox, ErrorState, Skeleton } from '@/components/ui';
+import { ShareDialog } from '@/components/share-dialog';
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, ErrorState, Skeleton } from '@/components/ui';
 import { useOnline } from '@/lib/online';
 import { formatDateTime, formatRelative } from '@/lib/utils';
-import type { ChecklistItem } from '@/lib/schemas';
+import type { ChecklistItem, TaskSource } from '@/lib/schemas';
+import { useFieldActions } from '@/features/day/field-actions';
 import { CloseJobDialog } from './close-job-dialog';
 import { fetchJob } from './jobs-api';
 import { PriorityBadge, TaskStatusBadge } from './task-status';
@@ -20,6 +22,7 @@ import { PriorityBadge, TaskStatusBadge } from './task-status';
 export function JobDetailPage() {
   const { taskId } = useParams({ from: '/protected/jobs/$taskId' });
   const online = useOnline();
+  const { onTheWay, share, shared, closeShare } = useFieldActions(taskId);
 
   const job = useQuery({
     queryKey: ['job', taskId],
@@ -51,7 +54,7 @@ export function JobDetailPage() {
       >
         {/* החץ מצביע ימינה — ב-RTL זו התנועה "חזרה". */}
         <ArrowRight className="size-4" aria-hidden />
-        למשימות שלי
+        להיום שלי
       </Link>
 
       {!online ? <OfflineBanner /> : null}
@@ -62,7 +65,7 @@ export function JobDetailPage() {
           <TaskStatusBadge status={t.status} />
           <PriorityBadge priority={t.priority} />
           <Badge tone="neutral" dot={false}>
-            {t.source === 'EMAIL' ? 'ממייל' : 'ידנית'}
+            {SOURCE_LABEL[t.source]}
           </Badge>
         </div>
         <h1 className="text-xl font-semibold leading-(--leading-tight) tracking-tight text-fg">
@@ -85,19 +88,45 @@ export function JobDetailPage() {
           ) : null}
           {address ? (
             <a
-              // maps: מפורש ולא כתובת של ספק אחד — במובייל מערכת
-              // ההפעלה פותחת את אפליקציית המפות המותקנת.
-              href={`https://maps.google.com/maps?q=${encodeURIComponent(address)}`}
+              // Waze — מה שטכנאים בישראל משתמשים בו. בלי API ובלי עלות.
+              href={`https://waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-(--radius-lg) border border-border bg-surface-raised text-sm font-medium text-fg shadow-xs transition-colors active:bg-surface-hover"
             >
               <Navigation className="size-5 text-accent" aria-hidden />
-              ניווט
+              ניווט ב-Waze
             </a>
           ) : null}
         </div>
       ) : null}
+
+      {/* מול הלקוח: "בדרך" לפני שיוצאים, קישור מעקב בכל רגע אחר. */}
+      {isOpen ? (
+        <div className="grid grid-cols-2 gap-3">
+          <Button
+            variant="secondary"
+            className="min-h-14"
+            loading={onTheWay.isPending}
+            disabled={!online}
+            onClick={() => onTheWay.mutate()}
+          >
+            <Truck aria-hidden />
+            אני בדרך
+          </Button>
+          <Button
+            variant="secondary"
+            className="min-h-14"
+            loading={share.isPending}
+            disabled={!online}
+            onClick={() => share.mutate()}
+          >
+            <Send aria-hidden />
+            קישור ללקוח
+          </Button>
+        </div>
+      ) : null}
+      {shared ? <ShareDialog result={shared.result} title={shared.title} onClose={closeShare} /> : null}
 
       {address ? (
         <p className="flex items-start gap-2 text-sm text-fg-muted">
@@ -210,6 +239,13 @@ export function JobDetailPage() {
     </div>
   );
 }
+
+const SOURCE_LABEL: Record<TaskSource, string> = {
+  EMAIL: 'ממייל',
+  MANUAL: 'ידנית',
+  CUSTOMER_LINK: 'הלקוח קבע',
+  QUOTE: 'מהצעת מחיר',
+};
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (

@@ -16,6 +16,7 @@ import {
 import { request } from '@/lib/api';
 import { useOnline } from '@/lib/online';
 import { closeTaskResultSchema, type ChecklistItem } from '@/lib/schemas';
+import { reportSiteLocation } from '@/features/day/field-actions';
 
 /**
  * סגירת משימה.
@@ -69,9 +70,14 @@ export function CloseJobDialog({
       // באמת קרה — "נסגרה" על משימה שכבר הייתה סגורה זה שקר קטן
       // שמבלבל בהמשך.
       if (result.alreadyClosed) toast.info('המשימה כבר הייתה סגורה');
-      else toast.success('המשימה נסגרה', 'המלאי, החיוב והמייל ללקוח מטופלים ברקע');
+      else {
+        toast.success('המשימה נסגרה', 'המלאי, החיוב והמייל ללקוח מטופלים ברקע');
+        // הטכנאי עומד עכשיו אצל הלקוח — הרגע הכי מדויק ללמוד איפה הוא.
+        reportSiteLocation(taskId);
+      }
       await qc.invalidateQueries({ queryKey: ['job', taskId] });
       await qc.invalidateQueries({ queryKey: ['my-jobs'] });
+      await qc.invalidateQueries({ queryKey: ['my-day'] });
     },
     onError: (err: Error) => toast.error('סגירת המשימה נכשלה', err.message),
   });

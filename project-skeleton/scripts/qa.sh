@@ -56,7 +56,10 @@ step "Web: typecheck"          bash -c 'cd frontend-web && npx tsc -b'
 step "Web: lint"               bash -c 'cd frontend-web && npm run -s lint'
 step "Web: tests"              bash -c 'cd frontend-web && npx vitest run'
 step "Web: build"              bash -c 'cd frontend-web && npx vite build --mode selfhost'
-step "PWA: typecheck + build"  bash -c 'cd frontend-pwa && npx tsc -b && npx vite build --mode selfhost'
+step "PWA: typecheck"          bash -c 'cd frontend-pwa && npx tsc -b'
+step "PWA: lint"               bash -c 'cd frontend-pwa && npm run -s lint'
+step "PWA: tests"              bash -c 'cd frontend-pwa && npx vitest run'
+step "PWA: build"              bash -c 'cd frontend-pwa && npx vite build --mode selfhost'
 
 printf '\n\033[1;32m✔ כל השערים עברו\033[0m (%ss)\n' "$(( $(date +%s) - START ))"
 rm -rf "$LOGDIR"

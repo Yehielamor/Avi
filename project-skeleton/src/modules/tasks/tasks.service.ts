@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, TaskStatus } from '@prisma/client';
+import { Prisma, TaskStatus, UserRole } from '@prisma/client';
 import type { Task } from '@prisma/client';
 
 import { PrismaService, type TenantClient } from '../../database/prisma.service';
@@ -21,6 +21,21 @@ export interface ChecklistItemInput {
   priceCode?: string;
   sku?: string;
   qty?: number;
+}
+
+/** המשתמש המחובר, מהטוקן. התפקיד קובע אילו משימות הוא רואה בכלל. */
+export interface TaskActor {
+  id: string;
+  role: UserRole;
+}
+
+/**
+ * טכנאי (FIELD) רואה ופועל רק על משימות שהוקצו לו. התנאי יושב בתוך ה-WHERE
+ * — לא בבדיקה אחרי השליפה — כדי ש"לא שלך" ו"לא קיים" ייראו אותו דבר (404),
+ * כמו ב-TaskStatusService.findForActor. OWNER/MANAGER: בלי הגבלה נוספת.
+ */
+export function taskScopeFor(actor?: TaskActor): Prisma.TaskWhereInput {
+  return actor?.role === UserRole.FIELD ? { assignedToUserId: actor.id } : {};
 }
 
 export interface CloseTaskResult {
@@ -62,9 +77,10 @@ export class TasksService {
      * כאן מהטוקן ואינה ניתנת להצהרה ע"י הלקוח. אחרת כל טכנאי היה
      * יכול לשלוף את התור של עמיתו.
      */
-    actorUserId?: string,
+    actor?: TaskActor,
   ): Promise<{ items: Task[]; nextCursor: string | null }> {
     const take = filters.take ?? DEFAULT_PAGE_SIZE;
+    const actorUserId = actor?.id;
 
     if (filters.assignedToMe && !actorUserId) {
       throw new BadRequestException('assignedToMe requires an authenticated user');
@@ -77,6 +93,8 @@ export class TasksService {
           ...(filters.status ? { status: filters.status } : {}),
           ...(filters.customerId ? { customerId: filters.customerId } : {}),
           ...(filters.assignedToMe ? { assignedToUserId: actorUserId } : {}),
+          // אחרון: לטכנאי זה גובר על כל סינון אחר, גם בלי assignedToMe.
+          ...taskScopeFor(actor),
         },
         // assignedTo בשדות מפורשים בלבד: `assignedTo: true` החזיר את כל שורת
         // המשתמש — כולל passwordHash — לכל מי שרואה את הרשימה (QA 18.09, Critical).
@@ -107,10 +125,10 @@ export class TasksService {
    * בכוונה — הוא הופך שורה של טננט אחר ל-404 מדויק במקום ל-null
    * מסתורי, ומשאיר את הכוונה גלויה לקורא הבא.
    */
-  async findOne(tenantId: string, taskId: string) {
+  async findOne(tenantId: string, taskId: string, actor?: TaskActor) {
     const task = await this.prisma.forTenant(tenantId, (tx) =>
       tx.task.findFirst({
-        where: { id: taskId, tenantId },
+        where: { id: taskId, tenantId, ...taskScopeFor(actor) },
         include: {
           customer: true,
           assignedTo: { select: { id: true, name: true, role: true } },
@@ -293,11 +311,13 @@ export class TasksService {
     tenantId: string,
     taskId: string,
     finalChecklist?: ChecklistItemInput[],
-    actorUserId?: string,
+    actor?: TaskActor,
   ): Promise<CloseTaskResult> {
+    const actorUserId = actor?.id;
+    const scope = taskScopeFor(actor);
     const result = await this.prisma.forTenant(tenantId, async (tx) => {
       const { count } = await tx.task.updateMany({
-        where: { id: taskId, tenantId, status: { not: TaskStatus.CLOSED } },
+        where: { id: taskId, tenantId, ...scope, status: { not: TaskStatus.CLOSED } },
         data: {
           status: TaskStatus.CLOSED,
           closedAt: new Date(),
@@ -310,9 +330,9 @@ export class TasksService {
       if (count === 0) {
         // מבדילים בין "כבר סגורה" (200 אידמפוטנטי) לבין "לא קיימת
         // בטננט הזה" (404). שים לב שגם משימה של טננט אחר נופלת לענף
-        // ה-404 — היא פשוט אינה נראית מכאן.
+        // ה-404 — היא פשוט אינה נראית מכאן, וכך גם משימה של טכנאי אחר.
         const exists = await tx.task.findFirst({
-          where: { id: taskId, tenantId },
+          where: { id: taskId, tenantId, ...scope },
           select: { id: true },
         });
         if (!exists) throw new NotFoundException('Task not found');

@@ -114,6 +114,7 @@ curl -s -o /dev/null -w '%{http_code}' https://tenant.craftmind-ai.com/v1/tasks 
 | | |
 |---|---|
 | אתר + API | `https://craftmind-ai.com` — ה-SPA, ו-`/v1/*` מועבר לאפליקציה (מקור אחד) |
+| אפליקציית טכנאי | `https://craftmind-ai.com/field/` — PWA, `scripts/deploy-field.sh`, symlink ב-`/var/www/craftmind-field` |
 | API בלבד | `https://api.craftmind-ai.com` (אותה אפליקציה, לשימוש חיצוני) |
 | שרת | DigitalOcean Droplet, FRA1, 1 vCPU / 1GB / 25GB, `164.90.161.15` |
 | תיקייה | `/opt/craftmind` (`.env` בהרשאות 600, נוצר על השרת) |

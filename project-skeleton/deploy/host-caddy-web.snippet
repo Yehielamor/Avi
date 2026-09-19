@@ -31,6 +31,8 @@ craftmind-ai.com {
 	redir /field /field/ permanent
 	handle_path /field/* {
 		root * /var/www/craftmind-field
+		@manifest path /manifest.webmanifest
+		header @manifest Content-Type application/manifest+json
 		@hashed path /assets/*
 		header @hashed Cache-Control "public, max-age=31536000, immutable"
 		@entry path / /index.html /sw.js /manifest.webmanifest

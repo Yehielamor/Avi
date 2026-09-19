@@ -7,6 +7,7 @@ dist/
 # והם חייבים להיות בגיט כדי ש-Vercel יבנה איתם.
 !frontend-web/.env.production
 !frontend-web/.env.selfhost
+!frontend-pwa/.env.selfhost
 *.log
 .DS_Store
 coverage/

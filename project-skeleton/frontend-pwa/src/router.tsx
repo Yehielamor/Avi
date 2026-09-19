@@ -70,7 +70,8 @@ const routeTree = rootRoute.addChildren([
   protectedRoute.addChildren([myDayRoute, myJobsRoute, jobDetailRoute]),
 ]);
 
-export const router = createRouter({ routeTree, defaultPreload: false });
+// BASE_URL = '/field/' בפרודקשן (vite.config.ts). בלי זה כל קישור פנימי יוצא מהאפליקציה.
+export const router = createRouter({ routeTree, defaultPreload: false, basepath: import.meta.env.BASE_URL });
 
 declare module '@tanstack/react-router' {
   interface Register {

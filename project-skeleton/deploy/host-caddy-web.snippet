@@ -26,6 +26,19 @@ craftmind-ai.com {
 		reverse_proxy 127.0.0.1:3000
 	}
 
+	# אפליקציית הטכנאי (PWA). נפרדת מהממשק: build משלה, service worker
+	# שה-scope שלו /field/ בלבד, ו-releases משלה (scripts/deploy-field.sh).
+	redir /field /field/ permanent
+	handle_path /field/* {
+		root * /var/www/craftmind-field
+		@hashed path /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		@entry path / /index.html /sw.js /manifest.webmanifest
+		header @entry Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+
 	handle {
 		root * /var/www/craftmind
 		# קבצים עם hash בשם — לנצח. index.html ו-service worker — אף פעם לא,

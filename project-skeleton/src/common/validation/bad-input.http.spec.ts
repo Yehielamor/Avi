@@ -1,3 +1,5 @@
+import type { Server } from 'node:http';
+
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { NextFunction, Request, Response } from 'express';
@@ -24,7 +26,7 @@ const CUSTOMER = '44444444-4444-4444-4444-444444444444';
 const TASK = '22222222-2222-2222-2222-222222222222';
 
 describe('bad input is a 400, not a 500', () => {
-  let app: INestApplication;
+  let app: INestApplication<Server>;
   const svc = {
     equipment: { book: jest.fn(), create: jest.fn(), update: jest.fn() },
     status: { requestReschedule: jest.fn(), schedule: jest.fn() },
@@ -32,7 +34,7 @@ describe('bad input is a 400, not a 500', () => {
     reports: { profitability: jest.fn() },
   };
   const called = () =>
-    Object.values(svc).flatMap((s) => Object.values(s) as jest.Mock[]).some((fn) => fn.mock.calls.length > 0);
+    Object.values(svc).flatMap((s) => Object.values(s)).some((fn) => fn.mock.calls.length > 0);
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({

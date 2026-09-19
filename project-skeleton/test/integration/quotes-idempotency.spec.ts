@@ -1,3 +1,5 @@
+import type { Server } from 'node:http';
+
 import type { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APP_INTERCEPTOR } from '@nestjs/core';
@@ -23,7 +25,7 @@ import { QuotesService } from '../../src/modules/quotes/quotes.service';
 describe('POST /quotes — idempotency', () => {
   const A = 'f5f5f5f5-0000-0000-0000-00000000000a';
 
-  let app: INestApplication;
+  let app: INestApplication<Server>;
   let prisma: PrismaService;
   let privileged: PrismaClient;
   let customerId: string;
@@ -98,8 +100,10 @@ describe('POST /quotes — idempotency', () => {
     expect(first.status).toBe(201);
     expect(second.status).toBe(201);
     expect(second.headers['idempotent-replay']).toBe('true');
-    expect(second.body.id).toBe(first.body.id);
-    expect(second.body.quoteNumber).toBe(first.body.quoteNumber);
+    type QuoteBody = { id: string; quoteNumber: number };
+    const [firstBody, secondBody] = [first.body as QuoteBody, second.body as QuoteBody];
+    expect(secondBody.id).toBe(firstBody.id);
+    expect(secondBody.quoteNumber).toBe(firstBody.quoteNumber);
     expect(await privileged.quote.count({ where: { tenantId: A } })).toBe(1);
   });
 

@@ -217,7 +217,7 @@ describe('EquipmentService', () => {
         await privileged.task.create({
           data: { tenantId: A, customerId: customerA, equipmentId: e.id, title: 'ישן', source: 'MANUAL', status: 'CLOSED' },
         });
-        await expect(service.remind(A, e.id, ACTOR)).resolves.toMatchObject({ url: expect.any(String) });
+        await expect(service.remind(A, e.id, ACTOR)).resolves.toMatchObject({ url: expect.any(String) as unknown });
       });
     });
 

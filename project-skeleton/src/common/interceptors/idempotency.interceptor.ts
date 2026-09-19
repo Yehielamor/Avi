@@ -71,7 +71,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
       throw new UnprocessableEntityException('Idempotency-Key must be between 8 and 200 characters');
     }
 
-    const endpoint = `${req.method} ${req.route?.path ?? req.path}`;
+    const endpoint = `${req.method} ${(req.route as { path?: string } | undefined)?.path ?? req.path}`;
     const requestHash = hashBody(req.body);
 
     return from(this.claim(tenantId, key, endpoint, requestHash)).pipe(

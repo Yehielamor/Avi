@@ -2,7 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import {
   HealthCheck,
   HealthCheckService,
-  HealthIndicatorResult,
+  HealthCheckResult,
   PrismaHealthIndicator,
 } from '@nestjs/terminus';
 import { ApiExcludeController } from '@nestjs/swagger';
@@ -41,7 +41,7 @@ export class HealthController {
   @Public()
   @Get('ready')
   @HealthCheck()
-  ready(): Promise<HealthIndicatorResult | unknown> {
+  ready(): Promise<HealthCheckResult> {
     return this.health.check([
       () => this.db.pingCheck('database', this.prisma, { timeout: 3000 }),
     ]);

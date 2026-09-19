@@ -13,12 +13,30 @@ import {
 import type { AppEnv } from '../../config/env.schema';
 import type { PrismaService, TenantClient } from '../../database/prisma.service';
 
+/** `mock.calls` מוקלד כ-any; כאן הוא נחשף כ-unknown, כך שכל בדיקה חייבת לומר מה היא מצפה למצוא. */
+function callsOf(fn: jest.Mock): unknown[][] {
+  return fn.mock.calls as unknown[][];
+}
+
+/** ארגומנט `arg` של קריאה מספר `call` ל-mock. */
+function callArg(fn: jest.Mock, call = 0, arg = 0): unknown {
+  return callsOf(fn)[call]?.[arg];
+}
+
 // bcrypt בעלות 12 הוא ~300ms לכל קריאה. הבדיקות כאן עוסקות בזרימת
 // ההחלטה ולא ב-KDF עצמו, ולכן הוא ממוקק — וכך גם אפשר לבדוק *במה*
 // הוא נקרא, מה שנחוץ לבדיקת ההשוואה המדומה.
 jest.mock('bcrypt');
 
-const mockedBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
+// `hash`/`compare` הם overloads שאחד מהם מקבל callback ומחזיר void, ולכן
+// `jest.Mocked<typeof bcrypt>` נותן להם טיפוס שלא מקבל Promise. כאן הם
+// מוקלדים לפי ה-overload שה-service משתמש בו בפועל.
+type HashFn = (data: string | Buffer, saltOrRounds: string | number) => Promise<string>;
+type CompareFn = (data: string | Buffer, encrypted: string) => Promise<boolean>;
+const mockedBcrypt = {
+  hash: bcrypt.hash as unknown as jest.MockedFunction<HashFn>,
+  compare: bcrypt.compare as unknown as jest.MockedFunction<CompareFn>,
+};
 
 /**
  * שלוש הפרצות שהבדיקות כאן שומרות סגורות:
@@ -110,8 +128,8 @@ describe('AuthService', () => {
     jwt = new JwtService({ secret: JWT_SECRET });
     service = new AuthService(prisma, jwt, config);
 
-    mockedBcrypt.hash.mockImplementation((async () => 'new-hash') as typeof bcrypt.hash);
-    mockedBcrypt.compare.mockImplementation((async () => true) as typeof bcrypt.compare);
+    mockedBcrypt.hash.mockResolvedValue('new-hash');
+    mockedBcrypt.compare.mockResolvedValue(true);
   });
 
   const decode = (token: string): Record<string, unknown> =>
@@ -130,7 +148,7 @@ describe('AuthService', () => {
 
       expect(tx.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ role: UserRole.FIELD }),
+          data: expect.objectContaining({ role: UserRole.FIELD }) as unknown,
         }),
       );
     });
@@ -143,7 +161,7 @@ describe('AuthService', () => {
         role: UserRole.OWNER,
       } as unknown as typeof params);
 
-      const call = tx.user.create.mock.calls[0]?.[0] as { data: { role: UserRole } };
+      const call = callArg(tx.user.create) as { data: { role: UserRole } };
       expect(call.data.role).toBe(UserRole.FIELD);
     });
 
@@ -152,7 +170,7 @@ describe('AuthService', () => {
       async (role) => {
         await service.register(TENANT_ID, { ...params, role } as unknown as typeof params);
 
-        const call = tx.user.create.mock.calls[0]?.[0] as { data: { role: UserRole } };
+        const call = callArg(tx.user.create) as { data: { role: UserRole } };
         expect(call.data.role).toBe(UserRole.FIELD);
       },
     );
@@ -176,14 +194,14 @@ describe('AuthService', () => {
       } as unknown as typeof params);
 
       expect(forTenant).toHaveBeenCalledWith(TENANT_ID, expect.any(Function));
-      const call = tx.user.create.mock.calls[0]?.[0] as { data: { tenantId: string } };
+      const call = callArg(tx.user.create) as { data: { tenantId: string } };
       expect(call.data.tenantId).toBe(TENANT_ID);
     });
 
     it('normalises the email to lower case and trims it', async () => {
       await service.register(TENANT_ID, { ...params, email: '  New@Example.COM ' });
 
-      const call = tx.user.create.mock.calls[0]?.[0] as { data: { email: string } };
+      const call = callArg(tx.user.create) as { data: { email: string } };
       expect(call.data.email).toBe('new@example.com');
     });
 
@@ -191,7 +209,7 @@ describe('AuthService', () => {
       await service.register(TENANT_ID, params);
 
       expect(mockedBcrypt.hash).toHaveBeenCalledWith('pw', 12);
-      const call = tx.user.create.mock.calls[0]?.[0] as { data: { passwordHash: string } };
+      const call = callArg(tx.user.create) as { data: { passwordHash: string } };
       expect(call.data.passwordHash).toBe('new-hash');
       expect(JSON.stringify(call)).not.toContain('pw"');
     });
@@ -199,10 +217,10 @@ describe('AuthService', () => {
     it('hashes before opening the transaction', async () => {
       // bcrypt בעלות 12 בתוך forTenant מחזיק חיבור DB ל-~300ms לכל הרשמה.
       const order: string[] = [];
-      mockedBcrypt.hash.mockImplementation((async () => {
+      mockedBcrypt.hash.mockImplementation(() => {
         order.push('hash');
-        return 'new-hash';
-      }) as typeof bcrypt.hash);
+        return Promise.resolve('new-hash');
+      });
       forTenant.mockImplementation(
         async <T,>(_t: string, fn: (client: TenantClient) => Promise<T>): Promise<T> => {
           order.push('tx');
@@ -255,7 +273,7 @@ describe('AuthService', () => {
         const unknownEmail = await captureError(service.login(TENANT_ID, 'nobody@example.com', 'pw'));
 
         tx.user.findUnique.mockResolvedValue(userRow);
-        mockedBcrypt.compare.mockImplementation((async () => false) as typeof bcrypt.compare);
+        mockedBcrypt.compare.mockResolvedValue(false);
         const wrongPassword = await captureError(service.login(TENANT_ID, 'user@example.com', 'wrong'));
 
         expect(unknownEmail).toBeInstanceOf(UnauthorizedException);
@@ -308,12 +326,12 @@ describe('AuthService', () => {
 
         expect(tx.user.updateMany).toHaveBeenCalledWith({
           where: { id: USER_ID, tenantId: TENANT_ID },
-          data: { lastLoginAt: expect.any(Date) },
+          data: { lastLoginAt: expect.any(Date) as unknown },
         });
       });
 
       it('is not written for a wrong password', async () => {
-        mockedBcrypt.compare.mockImplementation((async () => false) as typeof bcrypt.compare);
+        mockedBcrypt.compare.mockResolvedValue(false);
 
         await expect(service.login(TENANT_ID, 'user@example.com', 'wrong')).rejects.toThrow();
         expect(tx.user.updateMany).not.toHaveBeenCalled();
@@ -337,7 +355,7 @@ describe('AuthService', () => {
     it('runs every query under the tenant context', async () => {
       await service.login(TENANT_ID, 'user@example.com', 'pw');
 
-      for (const call of forTenant.mock.calls) {
+      for (const call of callsOf(forTenant)) {
         expect(call[0]).toBe(TENANT_ID);
       }
     });
@@ -521,7 +539,7 @@ describe('AuthService', () => {
     });
 
     it('rejects a wrong current password without writing anything', async () => {
-      mockedBcrypt.compare.mockImplementation((async () => false) as typeof bcrypt.compare);
+      mockedBcrypt.compare.mockResolvedValue(false);
 
       await expect(service.changePassword(TENANT_ID, USER_ID, 'wrong', 'new')).rejects.toBeInstanceOf(
         UnauthorizedException,

@@ -147,7 +147,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
    */
   static create(): PrismaService {
     const service = new PrismaService();
-    service.proxiedSelf = service as unknown as PrismaClient;
+    service.proxiedSelf = service;
     return service;
   }
 

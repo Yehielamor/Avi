@@ -262,7 +262,7 @@ export class QuotesService {
 
   private audit(tx: Tx, tenantId: string, userId: string | null, action: string, entityId: string, metadata: object) {
     return tx.auditLog.create({
-      data: { tenantId, userId, action, entityType: 'Quote', entityId, metadata: metadata as Prisma.InputJsonValue },
+      data: { tenantId, userId, action, entityType: 'Quote', entityId, metadata },
     });
   }
 }

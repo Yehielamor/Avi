@@ -30,7 +30,8 @@ describe('TenantContextMiddleware', () => {
     } as unknown as Request;
   };
 
-  const res = { setHeader: jest.fn() } as unknown as Response;
+  const setHeader = jest.fn();
+  const res = { setHeader } as unknown as Response;
 
   beforeEach(() => {
     resolve = jest.fn().mockResolvedValue(TENANT_ID);
@@ -138,9 +139,7 @@ describe('TenantContextMiddleware', () => {
       expect(next).not.toHaveBeenCalled();
 
       // הודעה שמכילה את השם מאפשרת למנות אילו טננטים קיימים.
-      await expect(middleware.use(req, res, next)).rejects.toThrow(
-        expect.objectContaining({ message: expect.not.stringContaining('does-not-exist') }),
-      );
+      await expect(middleware.use(req, res, next)).rejects.not.toThrow('does-not-exist');
     });
   });
 
@@ -150,7 +149,7 @@ describe('TenantContextMiddleware', () => {
       await middleware.use(req, res, next);
 
       expect(req.requestId).toBe('abc-123');
-      expect(res.setHeader).toHaveBeenCalledWith('x-request-id', 'abc-123');
+      expect(setHeader).toHaveBeenCalledWith('x-request-id', 'abc-123');
     });
 
     it('generates one when absent', async () => {

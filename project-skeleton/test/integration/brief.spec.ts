@@ -58,7 +58,7 @@ describe('BriefService', () => {
 
   const task = (data: Partial<Prisma.TaskUncheckedCreateInput> & { tenantId?: string }) =>
     privileged.task.create({
-      data: { tenantId: A, customerId: customer, title: 't', source: 'MANUAL', ...data } as Prisma.TaskUncheckedCreateInput,
+      data: { tenantId: A, customerId: customer, title: 't', source: 'MANUAL', ...data },
     });
 
   it('lists only visits scheduled for today in Israel, and flags confirmation', async () => {

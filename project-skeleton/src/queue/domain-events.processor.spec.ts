@@ -9,6 +9,11 @@ import type { InvoicingService } from '../modules/invoicing/invoicing.service';
 import type { SchedulingService } from '../modules/scheduling/scheduling.service';
 import { EVENT, type DomainEventJob } from './queue.constants';
 
+/** `mock.calls` מוקלד כ-any; כאן הוא נחשף כ-unknown, כך שכל בדיקה חייבת לומר מה היא מצפה למצוא. */
+function callsOf(fn: jest.Mock): unknown[][] {
+  return fn.mock.calls as unknown[][];
+}
+
 /**
  * הצרכן הוא המקום שבו "פעולה עסקית התרחשה" נקבע. שלוש התנהגויות
  * חייבות להיות נכונות, וכל אחת מהן הייתה באג בגרסה הקודמת:
@@ -40,7 +45,7 @@ describe('DomainEventsProcessor', () => {
 
   /** ה-SQL נשלח כ-template literal; מחברים לטקסט אחד לצורך בדיקה. */
   const sqlCalls = (): string[] =>
-    executeRaw.mock.calls.map((c) => {
+    callsOf(executeRaw).map((c) => {
       const parts = c[0] as { raw?: string[] } | string[];
       const raw = Array.isArray(parts) ? parts : (parts.raw ?? []);
       return raw.join('?') + ' :: ' + c.slice(1).join(',');

@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import type { Server } from 'node:http';
 import * as path from 'node:path';
 
 import type { INestApplication } from '@nestjs/common';
@@ -72,7 +73,7 @@ describe('throttle overrides', () => {
 });
 
 describe('public link throttling over HTTP', () => {
-  let app: INestApplication;
+  let app: INestApplication<Server>;
 
   beforeEach(async () => {
     const status = {

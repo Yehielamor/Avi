@@ -3,6 +3,16 @@ import { NotFoundException } from '@nestjs/common';
 import { SchedulingService } from './scheduling.service';
 import type { PrismaService, TenantClient } from '../../database/prisma.service';
 
+/** `mock.calls` מוקלד כ-any; כאן הוא נחשף כ-unknown, כך שכל בדיקה חייבת לומר מה היא מצפה למצוא. */
+function callsOf(fn: jest.Mock): unknown[][] {
+  return fn.mock.calls as unknown[][];
+}
+
+/** ארגומנט `arg` של קריאה מספר `call` ל-mock. */
+function callArg(fn: jest.Mock, call = 0, arg = 0): unknown {
+  return callsOf(fn)[call]?.[arg];
+}
+
 /**
  * השיוך האוטומטי הוא כתיבה על משימה, ולכן שתי טעויות כאן אינן
  * "שיוך פחות טוב" אלא נזק:
@@ -71,15 +81,15 @@ describe('SchedulingService', () => {
 
   /** ה-raw SQL מגיע כ-template literal; מחברים אותו לטקסט אחד. */
   const lockSql = (): string => {
-    const parts = tx.$queryRaw.mock.calls[0]?.[0] as { raw?: string[] } | string[] | undefined;
+    const parts = callArg(tx.$queryRaw) as { raw?: string[] } | string[] | undefined;
     if (!parts) return '';
     const raw = Array.isArray(parts) ? parts : (parts.raw ?? []);
     return raw.join('?');
   };
-  const lockParams = (): unknown[] => (tx.$queryRaw.mock.calls[0] ?? []).slice(1);
+  const lockParams = (): unknown[] => (callsOf(tx.$queryRaw)[0] ?? []).slice(1);
 
   const whereOf = (call: jest.Mock): Record<string, unknown> =>
-    (call.mock.calls[0]?.[0] as { where: Record<string, unknown> }).where;
+    (callArg(call) as { where: Record<string, unknown> }).where;
 
   // ---------------------------------------------------------------------------
 
@@ -292,7 +302,7 @@ describe('SchedulingService', () => {
   describe('outbox', () => {
     it('records task.assigned for the tenant after a successful assignment', async () => {
       await service.assignTask(TENANT, TASK);
-      expect(tx.outboxEvent.create.mock.calls[0]?.[0]).toMatchObject({
+      expect(callArg(tx.outboxEvent.create)).toMatchObject({
         data: {
           tenantId: TENANT,
           eventName: 'task.assigned',

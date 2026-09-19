@@ -332,7 +332,7 @@ export class EquipmentService {
         action,
         entityType: action.startsWith('task.') ? 'Task' : 'Equipment',
         entityId,
-        metadata: metadata as Prisma.InputJsonValue,
+        metadata,
       },
     });
   }

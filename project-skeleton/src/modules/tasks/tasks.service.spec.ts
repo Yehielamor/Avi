@@ -4,6 +4,16 @@ import { Prisma, TaskStatus, UserRole } from '@prisma/client';
 import { TasksService } from './tasks.service';
 import type { PrismaService, TenantClient } from '../../database/prisma.service';
 
+/** `mock.calls` מוקלד כ-any; כאן הוא נחשף כ-unknown, כך שכל בדיקה חייבת לומר מה היא מצפה למצוא. */
+function callsOf(fn: jest.Mock): unknown[][] {
+  return fn.mock.calls as unknown[][];
+}
+
+/** ארגומנט `arg` של קריאה מספר `call` ל-mock. */
+function callArg(fn: jest.Mock, call = 0, arg = 0): unknown {
+  return callsOf(fn)[call]?.[arg];
+}
+
 /**
  * TasksService הוא הנקודה שבה "משימה נסגרה" נקבע, וכל שאר המודולים
  * (מלאי, חיוב, מיילים) תלויים בה. ארבעה כשלים שנמצאו בביקורת מכוסים כאן:
@@ -85,7 +95,7 @@ describe('TasksService', () => {
   });
 
   const whereOf = (call: jest.Mock): Record<string, unknown> =>
-    (call.mock.calls[0]?.[0] as { where: Record<string, unknown> }).where;
+    (callArg(call) as { where: Record<string, unknown> }).where;
 
   // ---------------------------------------------------------------------------
 
@@ -97,26 +107,27 @@ describe('TasksService', () => {
 
     it('never loads the whole assigned user row (it holds passwordHash)', async () => {
       await service.findAll(TENANT);
-      expect(tx.task.findMany.mock.calls[0]?.[0].include.assignedTo).toEqual({
+      const args = callArg(tx.task.findMany) as { include: { assignedTo: unknown } };
+      expect(args.include.assignedTo).toEqual({
         select: { id: true, name: true, role: true },
       });
     });
 
     it('defaults the page size to 50', async () => {
       await service.findAll(TENANT);
-      expect(tx.task.findMany.mock.calls[0]?.[0]).toMatchObject({ take: 50 });
+      expect(callArg(tx.task.findMany)).toMatchObject({ take: 50 });
     });
 
     it('honours an explicit take', async () => {
       await service.findAll(TENANT, { take: 10 });
-      expect(tx.task.findMany.mock.calls[0]?.[0]).toMatchObject({ take: 10 });
+      expect(callArg(tx.task.findMany)).toMatchObject({ take: 10 });
     });
 
     it('does not clamp an oversized take — the only cap is the DTO', async () => {
       // מתעד פער ידוע: `@Max(100)` יושב ב-ListTasksQueryDto בלבד, ולכן
       // כל קורא פנימי (worker, שירות אחר) יכול לבקש עמוד בכל גודל.
       await service.findAll(TENANT, { take: 100_000 });
-      expect(tx.task.findMany.mock.calls[0]?.[0]).toMatchObject({ take: 100_000 });
+      expect(callArg(tx.task.findMany)).toMatchObject({ take: 100_000 });
     });
 
     it('scopes the query to the tenant', async () => {
@@ -144,19 +155,19 @@ describe('TasksService', () => {
 
     it('orders by priority first when urgentFirst is set', async () => {
       await service.findAll(TENANT, { urgentFirst: true });
-      const args = tx.task.findMany.mock.calls[0]?.[0] as { orderBy: Array<Record<string, string>> };
+      const args = callArg(tx.task.findMany) as { orderBy: Array<Record<string, string>> };
       expect(args.orderBy[0]).toEqual({ priority: 'asc' });
     });
 
     it('orders by recency by default', async () => {
       await service.findAll(TENANT);
-      const args = tx.task.findMany.mock.calls[0]?.[0] as { orderBy: Array<Record<string, string>> };
+      const args = callArg(tx.task.findMany) as { orderBy: Array<Record<string, string>> };
       expect(args.orderBy[0]).toEqual({ createdAt: 'desc' });
     });
 
     it('skips the cursor row so a page is never repeated', async () => {
       await service.findAll(TENANT, { cursor: TASK });
-      expect(tx.task.findMany.mock.calls[0]?.[0]).toMatchObject({ cursor: { id: TASK }, skip: 1 });
+      expect(callArg(tx.task.findMany)).toMatchObject({ cursor: { id: TASK }, skip: 1 });
     });
 
     it('returns the last id as nextCursor when the page is full', async () => {
@@ -218,19 +229,19 @@ describe('TasksService', () => {
 
     it('applies the template defaults to the new task', async () => {
       await service.createManual(TENANT, params, ACTOR);
-      expect(tx.task.create.mock.calls[0]?.[0]).toMatchObject({
+      expect(callArg(tx.task.create)).toMatchObject({
         data: expect.objectContaining({
           tenantId: TENANT,
           source: 'MANUAL',
           priority: 1,
           checklist: [{ label: 'check', done: false }],
-        }),
+        }) as unknown,
       });
     });
 
     it('stores a missing customFields as DbNull rather than a literal null', async () => {
       await service.createManual(TENANT, params, ACTOR);
-      const data = (tx.task.create.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+      const data = (callArg(tx.task.create) as { data: Record<string, unknown> }).data;
       expect(data.customFields).toBe(Prisma.DbNull);
     });
 
@@ -250,8 +261,8 @@ describe('TasksService', () => {
 
     it('attributes the audit row to the acting user', async () => {
       await service.createManual(TENANT, params, ACTOR);
-      expect(tx.auditLog.create.mock.calls[0]?.[0]).toMatchObject({
-        data: expect.objectContaining({ tenantId: TENANT, userId: ACTOR, action: 'task.created' }),
+      expect(callArg(tx.auditLog.create)).toMatchObject({
+        data: expect.objectContaining({ tenantId: TENANT, userId: ACTOR, action: 'task.created' }) as unknown,
       });
     });
   });
@@ -273,7 +284,7 @@ describe('TasksService', () => {
 
       expect(result).toEqual({ taskId: TASK, status: TaskStatus.CLOSED, alreadyClosed: false });
       expect(tx.auditLog.create).toHaveBeenCalledTimes(1);
-      expect(tx.outboxEvent.create.mock.calls[0]?.[0]).toMatchObject({
+      expect(callArg(tx.outboxEvent.create)).toMatchObject({
         data: { tenantId: TENANT, eventName: 'task.closed', payload: { tenantId: TENANT, taskId: TASK } },
       });
     });
@@ -347,25 +358,25 @@ describe('TasksService', () => {
     it('overwrites the checklist only when one was supplied', async () => {
       // בלי התנאי, סגירה בלי checklist הייתה מוחקת את זה שכבר נשמר.
       await service.close(TENANT, TASK, undefined, OWNER);
-      const data = (tx.task.updateMany.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+      const data = (callArg(tx.task.updateMany) as { data: Record<string, unknown> }).data;
       expect(data).not.toHaveProperty('checklist');
     });
 
     it('stores the supplied checklist', async () => {
       const checklist = [{ label: 'a', done: true, sku: 'S1', qty: 2 }];
       await service.close(TENANT, TASK, checklist, OWNER);
-      expect(tx.task.updateMany.mock.calls[0]?.[0]).toMatchObject({ data: { checklist } });
+      expect(callArg(tx.task.updateMany)).toMatchObject({ data: { checklist } });
     });
 
     it('records the closing user and the checklist size in the audit row', async () => {
       await service.close(TENANT, TASK, [{ label: 'a', done: true }], OWNER);
-      expect(tx.auditLog.create.mock.calls[0]?.[0]).toMatchObject({
+      expect(callArg(tx.auditLog.create)).toMatchObject({
         data: expect.objectContaining({
           userId: ACTOR,
           action: 'task.closed',
           entityId: TASK,
           metadata: { checklistItems: 1 },
-        }),
+        }) as unknown,
       });
     });
   });
@@ -414,7 +425,7 @@ describe('TasksService', () => {
     it('lets a technician close their own task', async () => {
       const result = await service.close(TENANT, TASK, undefined, FIELD);
       expect(result.alreadyClosed).toBe(false);
-      expect(tx.auditLog.create.mock.calls[0]?.[0]).toMatchObject({ data: expect.objectContaining({ userId: ACTOR }) });
+      expect(callArg(tx.auditLog.create)).toMatchObject({ data: expect.objectContaining({ userId: ACTOR }) as unknown });
     });
   });
 
@@ -429,7 +440,7 @@ describe('TasksService', () => {
         jobTypeTemplateId: TEMPLATE,
         priority: 3,
       });
-      expect(tx.task.create.mock.calls[0]?.[0]).toMatchObject({ data: { priority: 3 } });
+      expect(callArg(tx.task.create)).toMatchObject({ data: { priority: 3 } });
 
       tx.task.create.mockClear();
       await service.createFromEmail(TENANT, {
@@ -438,7 +449,7 @@ describe('TasksService', () => {
         sourceEmailId: 'msg-2',
         jobTypeTemplateId: TEMPLATE,
       });
-      expect(tx.task.create.mock.calls[0]?.[0]).toMatchObject({ data: { priority: 1 } });
+      expect(callArg(tx.task.create)).toMatchObject({ data: { priority: 1 } });
     });
 
     it('leaves the task raw when the extraction matched no template', async () => {
@@ -450,7 +461,7 @@ describe('TasksService', () => {
       });
 
       expect(tx.jobTypeTemplate.findFirst).not.toHaveBeenCalled();
-      expect(tx.task.create.mock.calls[0]?.[0]).toMatchObject({
+      expect(callArg(tx.task.create)).toMatchObject({
         data: { jobTypeTemplateId: null, priority: 2 },
       });
     });

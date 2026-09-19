@@ -63,7 +63,7 @@ describe('ReportsService.profitability', () => {
         status: 'CLOSED',
         closedAt: new Date(closedAt),
         assignedToUserId: tenantId === A ? tech : null,
-        checklist: (opts.checklist ?? []) as Prisma.InputJsonValue,
+        checklist: opts.checklist ?? [],
       },
     });
     if (opts.billed) {

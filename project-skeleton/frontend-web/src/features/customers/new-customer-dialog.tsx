@@ -108,7 +108,7 @@ export function NewCustomerDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={onSubmit} noValidate>
+        <form onSubmit={(e) => void onSubmit(e)} noValidate>
           <DialogBody>
             <Field label="שם" htmlFor="customer-name" error={errors.name?.message} required>
               <Input

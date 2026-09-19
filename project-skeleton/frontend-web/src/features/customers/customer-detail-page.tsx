@@ -17,7 +17,7 @@ import { formatDateTime, formatRelative } from '@/lib/utils';
 export function CustomerDetailPage() {
   // strict:false — הרכיב מיוצא לפני רישום המסלול, ולכן הפרמטר אינו
   // מוכר לטיפוסי הראוטר בזמן קומפילציה.
-  const params = useParams({ strict: false }) as { customerId?: string };
+  const params = useParams({ strict: false });
   const customerId = params.customerId ?? '';
 
   const customer = useQuery({

@@ -38,6 +38,7 @@ const loginRoute = createRoute({
   // משתמש עם טוקן שמנווט ל-/login מוחזר פנימה. בלי זה, "חזור"
   // בדפדפן אחרי התחברות מציג שוב את מסך ההתחברות.
   beforeLoad: () => {
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- TanStack Router's contract: beforeLoad throws the Redirect (a Response, not an Error)
     if (tokenStore.get()) throw redirect({ to: '/' });
   },
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
@@ -87,6 +88,7 @@ const protectedRoute = createRoute({
   id: 'protected',
   beforeLoad: ({ location }) => {
     if (!tokenStore.get()) {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- TanStack Router's contract: beforeLoad throws the Redirect (a Response, not an Error)
       throw redirect({ to: '/login', search: { redirect: location.href } });
     }
   },

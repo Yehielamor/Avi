@@ -115,7 +115,7 @@ export function ProfilePanel() {
           <CardDescription>השרת מנפיק טוקן חדש בסיום, ולכן אין צורך להתחבר מחדש</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={onSubmit} noValidate className="max-w-sm space-y-4">
+          <form onSubmit={(e) => void onSubmit(e)} noValidate className="max-w-sm space-y-4">
             <Field
               label="סיסמה נוכחית"
               htmlFor="current-password"

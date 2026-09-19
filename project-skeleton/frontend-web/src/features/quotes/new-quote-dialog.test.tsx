@@ -37,10 +37,10 @@ function renderDialog() {
 
 beforeEach(() => {
   request.mockReset();
-  request.mockImplementation(async (path: string) => {
-    if (path.startsWith('/customers/search')) return customers;
-    if (path.startsWith('/price-list')) return [];
-    throw new Error(`unexpected request: ${path}`);
+  request.mockImplementation((path: string) => {
+    if (path.startsWith('/customers/search')) return Promise.resolve(customers);
+    if (path.startsWith('/price-list')) return Promise.resolve([]);
+    return Promise.reject(new Error(`unexpected request: ${path}`));
   });
 });
 
@@ -92,11 +92,11 @@ describe('NewQuoteDialog — idempotent create', () => {
   };
 
   beforeEach(() => {
-    request.mockImplementation(async (path: string) => {
-      if (path.startsWith('/customers/search')) return customers;
-      if (path.startsWith('/price-list')) return [price];
-      if (path === '/quotes') throw new api.ApiError(0, 'network');
-      throw new Error(`unexpected request: ${path}`);
+    request.mockImplementation((path: string) => {
+      if (path.startsWith('/customers/search')) return Promise.resolve(customers);
+      if (path.startsWith('/price-list')) return Promise.resolve([price]);
+      if (path === '/quotes') return Promise.reject(new api.ApiError(0, 'network'));
+      return Promise.reject(new Error(`unexpected request: ${path}`));
     });
   });
 

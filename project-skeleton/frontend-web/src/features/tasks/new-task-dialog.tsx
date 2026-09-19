@@ -113,6 +113,7 @@ export function NewTaskDialog() {
   });
 
   // מפתח אחד לכל פתיחה של הדיאלוג, לא לכל רינדור.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `open` is a deliberate trigger: a fresh key per dialog opening, not a value the callback reads
   const idempotencyKey = useMemo(() => crypto.randomUUID(), [open]);
 
   const onSubmit = handleSubmit((values) => create.mutateAsync(values).catch(() => undefined));
@@ -135,7 +136,7 @@ export function NewTaskDialog() {
           <DialogDescription>משימה שנוצרת ידנית, לא ממייל נכנס.</DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={onSubmit} noValidate>
+        <form onSubmit={(e) => void onSubmit(e)} noValidate>
           <DialogBody>
             {noTemplates ? (
               // מצב ריק אמיתי: אומר למה אי אפשר להמשיך ומה לעשות.
